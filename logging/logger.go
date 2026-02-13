@@ -10,7 +10,7 @@ type Logger = *slog.Logger
 
 func Init(ctx context.Context) context.Context {
 	var opts = &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: slog.LevelDebug,
 	}
 
 	var logger Logger = slog.New(slog.NewJSONHandler(os.Stdout, opts))
