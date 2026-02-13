@@ -1,0 +1,10 @@
+go 1.26.0
+
+use (
+	./logging
+	./main-control
+	./main-device
+	./mqtt
+	./upnp-control-point
+	./upnp-device
+)
