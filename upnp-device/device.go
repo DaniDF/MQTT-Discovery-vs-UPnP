@@ -57,7 +57,7 @@ package upnp
 
 type RootDevice struct {
 	SpecVersion SpecVersion
-	Device      Device
+	Devices     []Device
 }
 
 type SpecVersion struct {
