@@ -35,7 +35,7 @@ var rootDevice = upnp.RootDevice{
 			ModelURL:         "http://superlight.df/smartlight-pro-plus",
 			ModelDescription: "The best smart light",
 			ModelNumber:      "422",
-			SerialNumber:     "123 - 456 - 789 - 0",
+			SerialNumber:     "123-456-789-0",
 			UPC:              "12345678900987654321",
 			PresentationURL:  "http://" + GetLocalIP() + ":" + strconv.Itoa(upnpPort) + devicePresentationUrl,
 			IconList: []upnp.Icon{
@@ -91,6 +91,9 @@ func main() {
 
 	httpServer(ctx)
 	ssdp(ctx)
+
+	temp := make(chan bool)
+	<-temp
 
 	cancel() //TODO Find a solution it is unused
 }
@@ -240,5 +243,5 @@ func deviceDescriptionHandler(ctx context.Context, response http.ResponseWriter,
 	log.Info("Request from " + request.RemoteAddr + " resource " + request.RequestURI)
 
 	response.WriteHeader(200)
-	response.Write([]byte("TESTTTTT"))
+	response.Write([]byte(rootDevice.StringXML()))
 }
