@@ -3,7 +3,7 @@ package upnp
 import "strings"
 
 /*
-<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11" xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation">
+<root xmlns="urn:schemas-upnp-org:device-1-0" configId="1">
 	<specVersion>
 		<major>1</major>
 		<minor>0</minor>
@@ -53,13 +53,17 @@ import "strings"
 				<controlURL>/ContentDirectory/Control</controlURL>
 			</service>
 		</serviceList>
+		<deviceList>
+		<deviceList>
+
+		</deviceList>
 	</device>
 </root>
 */
 
 type RootDevice struct {
 	SpecVersion SpecVersion
-	Devices     []Device
+	Device      Device
 }
 
 type SpecVersion struct {
@@ -82,6 +86,7 @@ type Device struct {
 	PresentationURL  string
 	IconList         []Icon
 	ServiceList      []Service
+	EmbeddedDevices  []Device
 }
 
 type Icon struct {
@@ -100,21 +105,21 @@ type Service struct {
 	ControlURL  string
 }
 
+// Generates a string compatible with the specifications (see 2.3)
 func (rootDevice RootDevice) StringXML() string {
 	var result strings.Builder
 
-	result.WriteString("<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:pnpx=\"http://schemas.microsoft.com/windows/pnpx/2005/11\" xmlns:df=\"http://schemas.microsoft.com/windows/2008/09/devicefoundation\">\n")
+	result.WriteString("<root xmlns=\"urn:schemas-upnp-org:device-1-0\" configId=\"1\">\n")
 	result.WriteString(rootDevice.SpecVersion.StringXML())
 
-	for _, device := range rootDevice.Devices {
-		result.WriteString(device.StringXML())
-	}
+	result.WriteString(rootDevice.Device.StringXML())
 
 	result.WriteString("</root>\n")
 
 	return result.String()
 }
 
+// Generates a string compatible with the specifications (see 2.3)
 func (specVersion SpecVersion) StringXML() string {
 	var result strings.Builder
 
@@ -126,6 +131,7 @@ func (specVersion SpecVersion) StringXML() string {
 	return result.String()
 }
 
+// Generates a string compatible with the specifications (see 2.3)
 func (device Device) StringXML() string {
 	var result strings.Builder
 
@@ -155,11 +161,20 @@ func (device Device) StringXML() string {
 	}
 	result.WriteString("</serviceList>\n")
 
+	if len(device.EmbeddedDevices) > 0 {
+		result.WriteString("<deviceList>\n")
+		for _, embeddedDevice := range device.EmbeddedDevices {
+			result.WriteString(embeddedDevice.StringXML())
+		}
+		result.WriteString("</deviceList>\n")
+	}
+
 	result.WriteString("</device>\n")
 
 	return result.String()
 }
 
+// Generates a string compatible with the specifications (see 2.3)
 func (icon Icon) StringXML() string {
 	var result strings.Builder
 
@@ -174,6 +189,7 @@ func (icon Icon) StringXML() string {
 	return result.String()
 }
 
+// Generates a string compatible with the specifications (see 2.3)
 func (service Service) StringXML() string {
 	var result strings.Builder
 
