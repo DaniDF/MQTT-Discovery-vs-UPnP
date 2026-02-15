@@ -1,8 +1,12 @@
 package upnp
 
-import "strings"
+import (
+	"errors"
+	"strconv"
+	"strings"
+)
 
-/*
+/* See 2.3
 <root xmlns="urn:schemas-upnp-org:device-1-0" configId="1">
 	<specVersion>
 		<major>1</major>
@@ -61,6 +65,64 @@ import "strings"
 </root>
 */
 
+/* See 2.5
+<?xml version="1.0"?>
+<scpd xmlns="urn:schemas-upnp-org:service-1-0" xmlns:dt1="urn:domain-name:more-datatypes" xmlns:dt2="urn:domain-name:vendor-datatypes" configId="configuration number">
+	<specVersion>
+		<major>2</major>
+		<minor>0</minor>
+	</specVersion>
+	<actionList>
+		<action>
+			<name>actionName</name>
+			<argumentList>
+				<argument>
+					<name>argumentNameIn1</name>
+					<direction>in</direction>
+					<relatedStateVariable>stateVariableName</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>argumentNameOut1</name>
+					<direction>out</direction>
+					<retval/>
+					<relatedStateVariable>stateVariableName</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>argumentNameOut2</name>
+					<direction>out</direction>
+					<relatedStateVariable>stateVariableName</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+	</actionList>
+	<serviceStateTable>
+		<stateVariable sendEvents="yes"|"no" multicast="yes"|"no">
+			<name>variableName</name>
+			<dataType>basic data type</dataType>
+			<defaultValue>default value</defaultValue>
+			<allowedValueRange>
+				<minimum>minimum value</minimum>
+				<maximum>maximum value</maximum>
+				<step>increment value</step>
+			</allowedValueRange>
+		</stateVariable>
+		<stateVariable sendEvents="yes"|"no" multicast="yes"|"no">
+			<name>variableName</name>
+			<dataType type="dt1:variable data type">string</dataType>
+			<defaultValue>default value</defaultValue>
+			<allowedValueList>
+				<allowedValue>enumerated value</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="yes"|"no" multicast="yes"|"no">
+			<name>variableName</name>
+			<dataType type="dt2:vendor data type">string</dataType>
+			<defaultValue>default value</defaultValue>
+		</stateVariable>
+	</serviceStateTable>
+</scpd>
+*/
+
 type RootDevice struct {
 	SpecVersion SpecVersion
 	Device      Device
@@ -98,11 +160,96 @@ type Icon struct {
 }
 
 type Service struct {
-	ServiceType string
-	ServiceId   string
-	SCPDURL     string
-	EventSubURL string
-	ControlURL  string
+	ServiceType    string
+	ServiceId      string
+	SCPDURL        string
+	EventSubURL    string
+	ControlURL     string
+	ControlHandler func() string
+
+	SCPD Spcd
+}
+
+type Spcd struct {
+	SpecVersion       SpecVersion
+	actionList        []Action
+	ServiceStateTable []*StateVariable
+}
+
+// Add the provided action to the SPCD.
+// Rises an "StateVariable not found" if at least one of the arguments has a RelatedStateVariable not present in ServiceStateTable.
+func (spcd *Spcd) AddAction(action Action) error {
+	flagFoundArgumentStateVariable := true
+	for _, argument := range action.ArgumentList {
+
+		flagFoundStateVariable := false
+		for i := range spcd.ServiceStateTable {
+			flagFoundStateVariable = flagFoundStateVariable || spcd.ServiceStateTable[i] == argument.RelatedStateVariable
+		}
+
+		flagFoundArgumentStateVariable = flagFoundArgumentStateVariable && flagFoundStateVariable
+	}
+
+	if !flagFoundArgumentStateVariable {
+		return errors.New("StateVariable not found")
+	}
+
+	spcd.actionList = append(spcd.actionList, action)
+
+	return nil
+}
+
+type Action struct {
+	Name         string
+	ArgumentList []Argument
+}
+
+type Argument struct {
+	Name                 string
+	Direction            ArgumentDirection
+	RelatedStateVariable *StateVariable
+}
+
+type ArgumentDirection string
+
+const (
+	In  ArgumentDirection = "in"
+	Out ArgumentDirection = "out"
+)
+
+func (argumentDirection ArgumentDirection) String() string {
+	switch argumentDirection {
+	case In:
+		return "in"
+	case Out:
+		return "out"
+	default:
+		return "in"
+	}
+}
+
+type StateVariable struct {
+	SendEvents        bool
+	Multicast         bool
+	Name              string
+	DataType          string
+	DefaultValue      string
+	AllowedValueRange *ValueRange
+	AllowedValueList  []Value
+}
+
+type ValueRange struct {
+	Minimum int //TODO All should be comparable
+	Maximum int
+	Step    int
+}
+
+type Value struct {
+	AllowedValue int //TODO Should be comparable
+}
+
+type SerializableXML interface {
+	StringXML() string
 }
 
 // Generates a string compatible with the specifications (see 2.3)
@@ -202,4 +349,110 @@ func (service Service) StringXML() string {
 	result.WriteString("</service>\n")
 
 	return result.String()
+}
+
+func (spcd Spcd) StringXML() string {
+	var result strings.Builder
+
+	result.WriteString("<?xml version=\"1.0\"?>\n")
+	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" xmlns:dt1=\"urn:domain-name:more-datatypes\" xmlns:dt2=\"urn:domain-name:vendor-datatypes\" configId=\"1\">\n") //TODO da capire
+
+	result.WriteString(spcd.SpecVersion.StringXML())
+
+	result.WriteString("<actionList>\n")
+
+	for _, action := range spcd.actionList {
+		result.WriteString(action.StringXML())
+	}
+	result.WriteString("</actionList>\n")
+
+	result.WriteString("<serviceStateTable>\n")
+	for _, stateVariable := range spcd.ServiceStateTable {
+		result.WriteString(stateVariable.StringXML())
+	}
+	result.WriteString("</serviceStateTable>\n")
+
+	result.WriteString("</scpd>\n")
+
+	return result.String()
+}
+
+func (action Action) StringXML() string {
+	var result strings.Builder
+
+	result.WriteString("<action>\n")
+	result.WriteString("<name>" + action.Name + "</name>\n")
+
+	result.WriteString("<argumentList>\n")
+	for _, argument := range action.ArgumentList {
+		result.WriteString(argument.StringXML())
+	}
+	result.WriteString("</argumentList>\n")
+
+	result.WriteString("</action>\n")
+
+	return result.String()
+}
+
+func (argument Argument) StringXML() string {
+	var result strings.Builder
+
+	result.WriteString("<argument>\n")
+	result.WriteString("<name>" + argument.Name + "</name>\n")
+	result.WriteString("<direction>" + argument.Direction.String() + "</direction>\n")
+	result.WriteString("<relatedStateVariable>" + argument.RelatedStateVariable.Name + "</relatedStateVariable>\n")
+	result.WriteString("</argument>\n")
+
+	return result.String()
+}
+
+func (stateVariable StateVariable) StringXML() string {
+	var result strings.Builder
+
+	sendEvents := ""
+	if stateVariable.SendEvents {
+		sendEvents = "yes"
+	} else {
+		sendEvents = "no"
+	}
+	multicast := ""
+	if stateVariable.Multicast {
+		multicast = "yes"
+	} else {
+		multicast = "no"
+	}
+	result.WriteString("<stateVariable sendEvents=\"" + sendEvents + "\" multicast=\"" + multicast + "\">\n")
+	result.WriteString("<name>" + stateVariable.Name + "</name>\n")
+	result.WriteString("<dataType>" + stateVariable.DataType + "</dataType>\n")
+
+	if stateVariable.AllowedValueRange != nil {
+		result.WriteString(stateVariable.AllowedValueRange.StringXML())
+	}
+	if len(stateVariable.AllowedValueList) > 0 {
+		result.WriteString("<allowedValueList>\n")
+		for _, value := range stateVariable.AllowedValueList {
+			result.WriteString(value.StringXML())
+		}
+		result.WriteString("</allowedValueList>\n")
+	}
+
+	result.WriteString("</stateVariable>\n")
+
+	return result.String()
+}
+
+func (valueRange ValueRange) StringXML() string {
+	var result strings.Builder
+
+	result.WriteString("<allowedValueRange>\n")
+	result.WriteString("<minimum>" + strconv.Itoa(valueRange.Minimum) + "</minimum>\n")
+	result.WriteString("<maximum>" + strconv.Itoa(valueRange.Maximum) + "</maximum>\n")
+	result.WriteString("<step>" + strconv.Itoa(valueRange.Step) + "</step>\n")
+	result.WriteString("</allowedValueRange>\n")
+
+	return result.String()
+}
+
+func (value Value) StringXML() string {
+	return "<allowedValue>" + strconv.Itoa(value.AllowedValue) + "</allowedValue>"
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"strings"
 
 	"mobile.dani.df/logging"
 	upnp "mobile.dani.df/upnp-device"
@@ -11,8 +12,26 @@ import (
 
 const (
 	upnpPort              = 8080
-	devicePresentationUrl = "/Device.xml"
+	devicePresentationUrl = "/device.xml"
 )
+
+var stateVariable = upnp.StateVariable{
+	SendEvents:        true,
+	Multicast:         false,
+	Name:              "state",
+	DataType:          "int",
+	DefaultValue:      "0",
+	AllowedValueRange: nil,
+	AllowedValueList:  nil,
+}
+
+var spcd = upnp.Spcd{
+	SpecVersion: upnp.SpecVersion{
+		Major: "1",
+		Minor: "1",
+	},
+	ServiceStateTable: []*upnp.StateVariable{&stateVariable},
+}
 
 var rootDevice = upnp.RootDevice{
 	SpecVersion: upnp.SpecVersion{
@@ -50,20 +69,24 @@ var rootDevice = upnp.RootDevice{
 		},
 		ServiceList: []upnp.Service{
 			{
-				ServiceType: "urn:schemas-upnp-org:service:SwitchPower:1",
-				ServiceId:   "urn:upnp-org:serviceId:SwitchPower",
-				SCPDURL:     "/SwitchPower",
-				EventSubURL: "/SwitchPower/event",
-				ControlURL:  "/SwitchPower/control",
+				ServiceType:    "urn:schemas-upnp-org:service:SwitchPower:1",
+				ServiceId:      "urn:upnp-org:serviceId:SwitchPower",
+				SCPDURL:        "/SwitchPower",
+				EventSubURL:    "/SwitchPower/event",
+				ControlURL:     "/SwitchPower/control",
+				ControlHandler: mockControlHandler,
+				SCPD:           spcd,
 			},
 			{
-				ServiceType: "urn:schemas-upnp-org:service:TemperatureSensor:1",
-				ServiceId:   "urn:upnp-org:serviceId:TemperatureSensor",
-				SCPDURL:     "/TemperatureSensor",
-				EventSubURL: "/TemperatureSensor/event",
-				ControlURL:  "/TemperatureSensor/control",
+				ServiceType:    "urn:schemas-upnp-org:service:TemperatureSensor:1",
+				ServiceId:      "urn:upnp-org:serviceId:TemperatureSensor",
+				SCPDURL:        "/TemperatureSensor",
+				EventSubURL:    "/TemperatureSensor/event",
+				ControlURL:     "/TemperatureSensor/control",
+				ControlHandler: mockControlHandler,
 			},
 		},
+		EmbeddedDevices: []upnp.Device{},
 	},
 }
 
@@ -82,8 +105,52 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx = logging.Init(ctx)
 
-	HttpServer(ctx)
-	Ssdp(ctx)
+	log := ctx.Value("logger").(logging.Logger)
+
+	err := spcd.AddAction(upnp.Action{
+		Name: "Turn on",
+		ArgumentList: []upnp.Argument{
+			{
+				Name:                 "StateValue",
+				Direction:            upnp.In,
+				RelatedStateVariable: &stateVariable,
+			},
+		},
+	})
+	if err != nil {
+		log.Error("Error adding action " + err.Error())
+	}
+
+	rootDevice.Device.ServiceList[0].SCPD = spcd
+
+	HttpServer(ctx, rootDevice)
+	Ssdp(ctx, rootDevice)
 
 	cancel() //TODO Find a solution it is unused
+}
+
+func mockControlHandler() string {
+	var result strings.Builder
+
+	/*
+		<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+			<s:Body>
+				<u:actionNameResponse xmlns:u="urn:schemas-upnp-org:service:serviceType:v">
+					<argumentName>out arg value</argumentName>
+					<!-- other out args and their values go here, if any -->
+				</u:actionNameResponse>
+			</s:Body>
+		</s:Envelope>
+	*/
+
+	result.WriteString("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n")
+	result.WriteString("<s:Body>\n")
+	result.WriteString("<u:actionNameResponse xmlns:u=\"urn:schemas-upnp-org:service:serviceType:v\">\n")
+	result.WriteString("<argumentName>out arg value</argumentName>\n")
+	result.WriteString("<!-- other out args and their values go here, if any -->\n")
+	result.WriteString("</u:actionNameResponse>\n")
+	result.WriteString("</s:Body>\n")
+	result.WriteString("</s:Envelope>\n")
+
+	return result.String()
 }

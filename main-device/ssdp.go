@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand/v2"
 	"net"
 	"strconv"
@@ -20,7 +19,7 @@ const (
 	ssdpWaitMillisBeforeSend  = 100  // Milliseconds between sends in NOTIFY
 )
 
-func Ssdp(ctx context.Context) error {
+func Ssdp(ctx context.Context, rootDevice upnp.RootDevice) error {
 	log := ctx.Value("logger").(logging.Logger)
 	deviceXML := ""
 	ctx = context.WithValue(ctx, "deviceXML", deviceXML)
@@ -94,8 +93,6 @@ func Ssdp(ctx context.Context) error {
 // Handles a single SSDP request
 // Returns error if it is not a M-SEARCH request
 func handleSSDPRequest(message UDPPacket, rootDevice upnp.RootDevice) ([]UDPPacket, error) {
-	fmt.Println(message.source.IP.String() + ": " + message.message) //TODO remove
-
 	st, findSt := FindHeader(message.message, "ST")
 	if !findSt {
 		return []UDPPacket{}, errors.New("Request not valid: ST not present")
@@ -229,18 +226,18 @@ func generateSSDPNotifyMessage(rootDevice upnp.RootDevice) []UDPPacket {
 // Produces an UDPPacket as described in 1.2.2 Table 1-1
 func generateSSDPNotifyMessageForRootDevice(rootDevice upnp.RootDevice) UDPPacket {
 	nt := "upnp:rootdevice"
-	usn := "uuid:" + rootDevice.Device.UDN + "::upnp:rootdevice"
+	usn := rootDevice.Device.UDN + "::upnp:rootdevice"
 
 	return generateSSDPNotifyMessageByDevice(nt, usn, rootDevice.Device)
 }
 
 // Produces two distinct UDPPacket as described in 1.2.2 Table 1-1 and Table 1-2
 func generateSSDPNotifyMessageForDevice(device upnp.Device) (UDPPacket, UDPPacket) {
-	nt1 := "uuid:" + device.UDN
+	nt1 := device.UDN
 	usn1 := nt1
 
 	nt2 := device.DeviceType
-	usn2 := "uuid:" + device.UDN + "::" + device.DeviceType
+	usn2 := device.UDN + "::" + device.DeviceType
 
 	return generateSSDPNotifyMessageByDevice(nt1, usn1, device), generateSSDPNotifyMessageByDevice(nt2, usn2, rootDevice.Device)
 }
@@ -248,7 +245,7 @@ func generateSSDPNotifyMessageForDevice(device upnp.Device) (UDPPacket, UDPPacke
 // Produces two distinct UDPPacket as described in 1.2.2 Table 1-3
 func generateSSDPNotifyMessageForService(device upnp.Device, service upnp.Service) UDPPacket {
 	nt1 := service.ServiceType
-	usn1 := "uuid:" + device.UDN + "::" + service.ServiceType
+	usn1 := device.UDN + "::" + service.ServiceType
 
 	return generateSSDPNotifyMessageByDevice(nt1, usn1, device)
 }
