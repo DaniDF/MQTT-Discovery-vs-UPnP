@@ -6,8 +6,10 @@ import (
 	"math/rand/v2"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
+	"golang.org/x/net/ipv4"
 	"mobile.dani.df/logging"
 )
 
@@ -16,8 +18,98 @@ const (
 	ssdpMulticastPort         = 1900
 	ssdpNotifyValiditySeconds = 1800 // Seconds of validity for the NOTIFY message (see 1.2.2)
 	ssdpWaitMillisBeforeSend  = 100  // Milliseconds between sends in NOTIFY
+	ssdpMSearchMX             = 2
 )
 
+func Search(ctx context.Context, st string) ([]string, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	addr, err := net.ResolveUDPAddr("udp4", ssdpMulticastAddress+":"+strconv.Itoa(ssdpMulticastPort))
+	if err != nil {
+		log.Error("[ssdp] Error while resolving address: " + err.Error())
+		return []string{}, errors.New("Resolve error")
+	}
+
+	conn, err := net.ListenUDP("udp4", nil)
+	if err != nil {
+		log.Error("[ssdp] Error while listen multicast UDP")
+		return []string{}, errors.New("Error listen multicast UDP")
+	}
+	defer conn.Close()
+
+	message := generateSSDPMSearchMulticast(st, ssdpMSearchMX)
+
+	packConn := ipv4.NewPacketConn(conn)
+	err = packConn.SetMulticastTTL(2)
+	if err != nil {
+		log.Error("Error setting Multicast TTL: " + err.Error())
+	}
+
+	packConn.WriteTo([]byte(message.message), nil, addr)
+
+	return listenMSearchResponse(ctx, conn, ssdpMSearchMX)
+}
+
+func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]string, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	timeoutRead := make(chan bool)
+	AlertAfter(time.Duration(mx+1)*time.Second, timeoutRead)
+
+	responses := []string{}
+	messageBuffer := make([]byte, 1024)
+	for {
+		select {
+		case <-timeoutRead:
+			log.Debug("[ssdp] Listen for M-Search responses ended by timeout")
+			return responses, nil
+		default:
+			conn.SetReadDeadline(time.Now().Add(time.Duration(mx) * time.Second))
+			n, source, err := conn.ReadFromUDP(messageBuffer)
+			if err != nil {
+				errorMessageSplit := strings.Split(err.Error(), ":")
+				errorMessage := strings.TrimSpace(errorMessageSplit[len(errorMessageSplit)-1])
+
+				if errorMessage != "i/o timeout" {
+					log.Error("[ssdp] Error while receiving a message: " + err.Error())
+					return responses, err
+				}
+			} else {
+				responses = append(responses, string(messageBuffer[:n]))
+				log.Debug("[ssdp] Received message from " + source.String())
+			}
+		}
+	}
+}
+
+// Generates an UDPPacket for multicast M-Search as described in 1.3.2
+func generateSSDPMSearchMulticast(st string, mx int) UDPPacket {
+	return generateSSDPMSearch(st, mx, ssdpMulticastAddress, ssdpMulticastPort)
+}
+
+// Produces an UDPPacket for M-SEARCH as described in 1.3.2
+func generateSSDPMSearch(st string, mx int, receiverAddr string, receiverPort int) UDPPacket {
+	searchMessage := "M-SEARCH * HTTP/1.1\r\n" +
+		"HOST: " + receiverAddr + ":" + strconv.Itoa(receiverPort) + "\r\n" +
+		"MAN: \"ssdp:discover\"\r\n" +
+		"MX: " + strconv.Itoa(mx) + "\r\n" +
+		"ST: " + st + "\r\n" +
+		"USER-AGENT: DFOS/0.1 UPnP/2.0 123/1.1\r\n" +
+		"\r\n"
+	return UDPPacket{
+		receiver: net.UDPAddr{
+			IP:   net.ParseIP(ssdpMulticastAddress),
+			Port: ssdpMulticastPort,
+		},
+		message: searchMessage,
+	}
+}
+
+func retrieveDeviceDescription(response string) (Device, error) {
+	return Device{}, nil
+}
+
+// TODO Make a saparete goroutine for each request
 func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 	log := ctx.Value("logger").(logging.Logger)
 	deviceXML := ""
@@ -36,6 +128,7 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 		log.Error("[ssdp] Error while listen multicast UDP")
 		return errors.New("Error while listen")
 	}
+	defer conn.Close()
 
 	messageBuffer := make([]byte, 1024)
 	for {
@@ -47,12 +140,12 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 				source:  *source,
 				message: string(messageBuffer[:n]),
 			}
-			log.Info("[ssdp] Received message from " + message.source.String())
+			log.Debug("[ssdp] Received message from " + message.source.String())
 
 			_, isMSearch := FindHeader(message.message, "M-SEARCH")
 
 			if isMSearch {
-
+				log.Info("[ssdp] Received M-SEARCH from " + message.source.String())
 				// MX wait seconds to send the response to prevent DOS (see 1.3.2)
 				wait := make(chan bool)
 				mx, findMx := FindHeader(message.message, "MX")
@@ -60,11 +153,8 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 				if findMx {
 					mxValue, err := strconv.Atoi(mx)
 					if err == nil {
-						go func() {
-							sleepTime := int((rand.Float32() * float32(mxValue)) * 1000)
-							time.Sleep(time.Duration(sleepTime) * time.Millisecond)
-							wait <- true
-						}()
+						sleepTime := int((rand.Float32() * float32(mxValue)) * 1000)
+						AlertAfter(time.Duration(sleepTime)*time.Millisecond, wait)
 					}
 				} else {
 					wait <- true
@@ -77,13 +167,14 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 				} else if err != nil && err.Error() == "Request not for this device" {
 					log.Debug("[ssdp] Request not for this device")
 				} else {
+					<-wait
 					for _, response := range responses {
 						log.Debug("[ssdp] Responding to " + response.receiver.String() + " with " + response.message)
-
-						<-wait
 						conn.WriteToUDP([]byte(response.message), &response.receiver)
 					}
 				}
+			} else {
+				log.Debug("[ssdp] NOT M-SEARCH Received message from " + message.source.String())
 			}
 		}
 	}
@@ -147,11 +238,11 @@ func handleSSDPMSEARCHRequest(message UDPPacket, rootDevice RootDevice) ([]UDPPa
 	return result, nil
 }
 
-// Produces an UDPPacket as described in 1.3.3
+// Produces an UDPPacket for responding to M-SEARCH as described in 1.3.3
 func generateSSDPResponseByDevice(st string, usn string, device Device, request UDPPacket) UDPPacket {
 	responseMessage := "HTTP/1.1 200 OK\r\n" +
 		"CACHE-CONTROL: max-age = 120\r\n" +
-		//TODO Add date
+		"DATE: " + time.Now().Format(time.RFC1123) + "\r\n" +
 		"EXT:\r\n" +
 		"LOCATION: " + device.PresentationURL + "\r\n" +
 		"SERVER: DFOS/0.1 UPnP/2.0 123/1.1\r\n" +

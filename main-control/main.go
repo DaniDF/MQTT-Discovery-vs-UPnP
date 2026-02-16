@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
-	"golang.org/x/net/context"
 	"mobile.dani.df/logging"
 	"mobile.dani.df/mqtt"
-	upnp "mobile.dani.df/upnp-control-point"
+
+	//"mobile.dani.df/upnp-control-point"
+	"mobile.dani.df/upnp"
 )
 
 func main() {
@@ -33,7 +35,10 @@ func main() {
 
 	conn.Unsubscribe("homeassistant/#")*/
 
-	upnp.Scan(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+	//upnp.Scan(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+
+	upnp.Search(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+	//upnp.Search(ctx, "ssdp:all")
 }
 
 func printMessage(message mqtt.MqttMessage) {

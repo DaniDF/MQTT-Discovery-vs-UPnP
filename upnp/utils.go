@@ -3,6 +3,7 @@ package upnp
 import (
 	"net"
 	"strings"
+	"time"
 )
 
 func FindHeader(header string, headerName string) (result string, flagFind bool) {
@@ -27,4 +28,11 @@ func GetLocalIP() string {
 		}
 	}
 	return "127.0.0.1"
+}
+
+func AlertAfter(timeout time.Duration, channel chan bool) {
+	go func() {
+		time.Sleep(timeout)
+		channel <- true
+	}()
 }
