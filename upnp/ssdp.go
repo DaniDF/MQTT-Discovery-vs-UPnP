@@ -1,4 +1,4 @@
-package main
+package upnp
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"mobile.dani.df/logging"
-	upnp "mobile.dani.df/upnp-device"
 )
 
 const (
@@ -19,7 +18,7 @@ const (
 	ssdpWaitMillisBeforeSend  = 100  // Milliseconds between sends in NOTIFY
 )
 
-func Ssdp(ctx context.Context, rootDevice upnp.RootDevice) error {
+func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 	log := ctx.Value("logger").(logging.Logger)
 	deviceXML := ""
 	ctx = context.WithValue(ctx, "deviceXML", deviceXML)
@@ -71,7 +70,7 @@ func Ssdp(ctx context.Context, rootDevice upnp.RootDevice) error {
 					wait <- true
 				}
 
-				responses, err := handleSSDPRequest(message, rootDevice)
+				responses, err := handleSSDPMSEARCHRequest(message, rootDevice)
 
 				if err != nil && err.Error() == "Request not valid: ST not present" {
 					log.Warn("[ssdp] Received a M-SEARCH without ST header")
@@ -92,7 +91,7 @@ func Ssdp(ctx context.Context, rootDevice upnp.RootDevice) error {
 
 // Handles a single SSDP request
 // Returns error if it is not a M-SEARCH request
-func handleSSDPRequest(message UDPPacket, rootDevice upnp.RootDevice) ([]UDPPacket, error) {
+func handleSSDPMSEARCHRequest(message UDPPacket, rootDevice RootDevice) ([]UDPPacket, error) {
 	st, findSt := FindHeader(message.message, "ST")
 	if !findSt {
 		return []UDPPacket{}, errors.New("Request not valid: ST not present")
@@ -110,7 +109,7 @@ func handleSSDPRequest(message UDPPacket, rootDevice upnp.RootDevice) ([]UDPPack
 		usn := rootDevice.Device.UDN + "::" + rootDevice.Device.DeviceType
 		return generateSSDPResponseByDevice(st, usn, rootDevice.Device, message)
 	}
-	genByServiceType := func(service upnp.Service) UDPPacket {
+	genByServiceType := func(service Service) UDPPacket {
 		usn := rootDevice.Device.UDN + "::" + service.ServiceType
 		return generateSSDPResponseByDevice(st, usn, rootDevice.Device, message)
 	}
@@ -149,7 +148,7 @@ func handleSSDPRequest(message UDPPacket, rootDevice upnp.RootDevice) ([]UDPPack
 }
 
 // Produces an UDPPacket as described in 1.3.3
-func generateSSDPResponseByDevice(st string, usn string, device upnp.Device, request UDPPacket) UDPPacket {
+func generateSSDPResponseByDevice(st string, usn string, device Device, request UDPPacket) UDPPacket {
 	responseMessage := "HTTP/1.1 200 OK\r\n" +
 		"CACHE-CONTROL: max-age = 120\r\n" +
 		//TODO Add date
@@ -166,7 +165,7 @@ func generateSSDPResponseByDevice(st string, usn string, device upnp.Device, req
 }
 
 // Runs the daemon that periodically multicasts the NOTIFY message
-func ssdpNotifyDaemon(ctx context.Context, addr *net.UDPAddr, rootDevice upnp.RootDevice) {
+func ssdpNotifyDaemon(ctx context.Context, addr *net.UDPAddr, rootDevice RootDevice) {
 	go func() {
 		log := ctx.Value("logger").(logging.Logger)
 
@@ -197,7 +196,7 @@ func ssdpNotifyDaemon(ctx context.Context, addr *net.UDPAddr, rootDevice upnp.Ro
 }
 
 // Generates the list of packets to be send during a NOTIFY
-func generateSSDPNotifyMessage(rootDevice upnp.RootDevice) []UDPPacket {
+func generateSSDPNotifyMessage(rootDevice RootDevice) []UDPPacket {
 	result := []UDPPacket{}
 
 	// RootDevice 3 messages
@@ -224,7 +223,7 @@ func generateSSDPNotifyMessage(rootDevice upnp.RootDevice) []UDPPacket {
 }
 
 // Produces an UDPPacket as described in 1.2.2 Table 1-1
-func generateSSDPNotifyMessageForRootDevice(rootDevice upnp.RootDevice) UDPPacket {
+func generateSSDPNotifyMessageForRootDevice(rootDevice RootDevice) UDPPacket {
 	nt := "upnp:rootdevice"
 	usn := rootDevice.Device.UDN + "::upnp:rootdevice"
 
@@ -232,18 +231,18 @@ func generateSSDPNotifyMessageForRootDevice(rootDevice upnp.RootDevice) UDPPacke
 }
 
 // Produces two distinct UDPPacket as described in 1.2.2 Table 1-1 and Table 1-2
-func generateSSDPNotifyMessageForDevice(device upnp.Device) (UDPPacket, UDPPacket) {
+func generateSSDPNotifyMessageForDevice(device Device) (UDPPacket, UDPPacket) {
 	nt1 := device.UDN
 	usn1 := nt1
 
 	nt2 := device.DeviceType
 	usn2 := device.UDN + "::" + device.DeviceType
 
-	return generateSSDPNotifyMessageByDevice(nt1, usn1, device), generateSSDPNotifyMessageByDevice(nt2, usn2, rootDevice.Device)
+	return generateSSDPNotifyMessageByDevice(nt1, usn1, device), generateSSDPNotifyMessageByDevice(nt2, usn2, device)
 }
 
 // Produces two distinct UDPPacket as described in 1.2.2 Table 1-3
-func generateSSDPNotifyMessageForService(device upnp.Device, service upnp.Service) UDPPacket {
+func generateSSDPNotifyMessageForService(device Device, service Service) UDPPacket {
 	nt1 := service.ServiceType
 	usn1 := device.UDN + "::" + service.ServiceType
 
@@ -251,7 +250,7 @@ func generateSSDPNotifyMessageForService(device upnp.Device, service upnp.Servic
 }
 
 // Generates the UDPPacket formatted for NOTIFY
-func generateSSDPNotifyMessageByDevice(nt string, usn string, device upnp.Device) UDPPacket {
+func generateSSDPNotifyMessageByDevice(nt string, usn string, device Device) UDPPacket {
 	responseMessage := "NOTIFY * HTTP/1.1\r\n" +
 		"HOST: " + ssdpMulticastAddress + ":" + strconv.Itoa(ssdpMulticastPort) + "\r\n" +
 		"CACHE-CONTROL: max-age = " + strconv.Itoa(ssdpNotifyValiditySeconds) + "\r\n" +

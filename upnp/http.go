@@ -1,22 +1,32 @@
-package main
+package upnp
 
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 
 	"mobile.dani.df/logging"
-	upnp "mobile.dani.df/upnp-device"
 )
 
 const (
 	httpServerPort = 8080
 )
 
+type UDPPacket struct {
+	source   net.UDPAddr
+	receiver net.UDPAddr
+	message  string
+}
+
+func (m UDPPacket) String() string {
+	return m.source.String() + " says " + m.message
+}
+
 var httpServerAddress = GetLocalIP()
 
-func HttpServer(ctx context.Context, rootDevice upnp.RootDevice) {
+func HttpServer(ctx context.Context, rootDevice RootDevice, devicePresentationUrl string) {
 	go func() {
 		log := ctx.Value("logger").(logging.Logger)
 
@@ -46,10 +56,10 @@ func HttpServer(ctx context.Context, rootDevice upnp.RootDevice) {
 	}()
 }
 
-func deviceDescriptionHandler(ctx context.Context, rootDevice upnp.RootDevice, request *http.Request, response http.ResponseWriter) {
+func deviceDescriptionHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	foundDeviceHandler := func(device upnp.SerializableXML) {
+	foundDeviceHandler := func(device SerializableXML) {
 		log.Info("[http] Request from " + request.RemoteAddr + " resource " + request.RequestURI + " -> OK - FOUND")
 		response.Header().Set("Content-Type", "application/xml")
 		response.WriteHeader(http.StatusOK)
@@ -78,8 +88,8 @@ func deviceDescriptionHandler(ctx context.Context, rootDevice upnp.RootDevice, r
 	}
 }
 
-func scpdURLHandler(ctx context.Context, rootDevice upnp.RootDevice, request *http.Request, response http.ResponseWriter) {
-	serviceFoundHandler := func(service upnp.Service) {
+func scpdURLHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
+	serviceFoundHandler := func(service Service) {
 		fmt.Fprint(response, service.SCPD.StringXML())
 	}
 
@@ -88,13 +98,13 @@ func scpdURLHandler(ctx context.Context, rootDevice upnp.RootDevice, request *ht
 		fmt.Fprint(response, "Sorry you requested some service descriptor that is not advertised. Are you sure you are talking with the right device?")
 	}
 
-	serviceRequestHandler(ctx, rootDevice, request, response, func(s upnp.Service) string {
+	serviceRequestHandler(ctx, rootDevice, request, response, func(s Service) string {
 		return s.SCPDURL
 	}, serviceFoundHandler, serviceNotFoundHandler)
 }
 
-func serviceControlHandler(ctx context.Context, rootDevice upnp.RootDevice, request *http.Request, response http.ResponseWriter) {
-	serviceFoundHandler := func(service upnp.Service) {
+func serviceControlHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
+	serviceFoundHandler := func(service Service) {
 		fmt.Fprint(response, service.ControlHandler())
 	}
 
@@ -103,12 +113,12 @@ func serviceControlHandler(ctx context.Context, rootDevice upnp.RootDevice, requ
 		fmt.Fprint(response, "Sorry come later I'll Harder, Better, Faster, Stronger")
 	}
 
-	serviceRequestHandler(ctx, rootDevice, request, response, func(s upnp.Service) string {
+	serviceRequestHandler(ctx, rootDevice, request, response, func(s Service) string {
 		return s.ControlURL
 	}, serviceFoundHandler, serviceNotFoundHandler)
 }
 
-func serviceRequestHandler(ctx context.Context, rootDevice upnp.RootDevice, request *http.Request, response http.ResponseWriter, extractor func(upnp.Service) string, serviceFoundHandler func(upnp.Service), serviceNotFoundHandler func()) {
+func serviceRequestHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter, extractor func(Service) string, serviceFoundHandler func(Service), serviceNotFoundHandler func()) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	log.Info("[http] Request from " + request.RemoteAddr + " resource " + request.RequestURI)

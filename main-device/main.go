@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"net"
 	"strconv"
 	"strings"
 
 	"mobile.dani.df/logging"
-	upnp "mobile.dani.df/upnp-device"
+	upnp "mobile.dani.df/upnp"
 )
 
 const (
@@ -50,7 +49,7 @@ var rootDevice = upnp.RootDevice{
 		ModelNumber:      "422",
 		SerialNumber:     "123-456-789-0",
 		UPC:              "12345678900987654321",
-		PresentationURL:  "http://" + GetLocalIP() + ":" + strconv.Itoa(upnpPort) + devicePresentationUrl,
+		PresentationURL:  "http://" + upnp.GetLocalIP() + ":" + strconv.Itoa(upnpPort) + devicePresentationUrl,
 		IconList: []upnp.Icon{
 			{
 				Mimetype: "image/jpeg",
@@ -90,16 +89,6 @@ var rootDevice = upnp.RootDevice{
 	},
 }
 
-type UDPPacket struct {
-	source   net.UDPAddr
-	receiver net.UDPAddr
-	message  string
-}
-
-func (m UDPPacket) String() string {
-	return m.source.String() + " says " + m.message
-}
-
 func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -123,8 +112,8 @@ func main() {
 
 	rootDevice.Device.ServiceList[0].SCPD = spcd
 
-	HttpServer(ctx, rootDevice)
-	Ssdp(ctx, rootDevice)
+	upnp.HttpServer(ctx, rootDevice, devicePresentationUrl)
+	upnp.SsdpDevice(ctx, rootDevice)
 
 	cancel() //TODO Find a solution it is unused
 }
