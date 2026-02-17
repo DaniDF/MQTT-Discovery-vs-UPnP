@@ -21,19 +21,32 @@ const (
 	ssdpMSearchMX             = 2
 )
 
-func Search(ctx context.Context, st string) ([]string, error) {
+type MSearchResult struct {
+	CacheControl int
+	Date         time.Time
+	Location     string
+	Server       string
+	St           string
+	USN          string
+}
+
+// --------------------------------------------------------------------------------------
+// For upnp control point
+// --------------------------------------------------------------------------------------
+
+func Search(ctx context.Context, st string) ([]MSearchResult, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	addr, err := net.ResolveUDPAddr("udp4", ssdpMulticastAddress+":"+strconv.Itoa(ssdpMulticastPort))
 	if err != nil {
 		log.Error("[ssdp] Error while resolving address: " + err.Error())
-		return []string{}, errors.New("Resolve error")
+		return []MSearchResult{}, errors.New("Resolve error")
 	}
 
 	conn, err := net.ListenUDP("udp4", nil)
 	if err != nil {
 		log.Error("[ssdp] Error while listen multicast UDP")
-		return []string{}, errors.New("Error listen multicast UDP")
+		return []MSearchResult{}, errors.New("Error listen multicast UDP")
 	}
 	defer conn.Close()
 
@@ -47,7 +60,20 @@ func Search(ctx context.Context, st string) ([]string, error) {
 
 	packConn.WriteTo([]byte(message.message), nil, addr)
 
-	return listenMSearchResponse(ctx, conn, ssdpMSearchMX)
+	responses, err := listenMSearchResponse(ctx, conn, ssdpMSearchMX)
+	if err != nil {
+		return []MSearchResult{}, err
+	}
+
+	result := []MSearchResult{}
+	for _, response := range responses {
+		mResponse, err := parseMSearchResponse(response)
+		if err == nil {
+			result = append(result, mResponse)
+		}
+	}
+
+	return result, nil
 }
 
 func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]string, error) {
@@ -105,9 +131,59 @@ func generateSSDPMSearch(st string, mx int, receiverAddr string, receiverPort in
 	}
 }
 
-func retrieveDeviceDescription(response string) (Device, error) {
-	return Device{}, nil
+func parseMSearchResponse(response string) (MSearchResult, error) {
+	cacheControl, find := FindHeader(response, "CACHE-CONTROL")
+	if !find {
+		return MSearchResult{}, errors.New("CACHE-CONTROL not present")
+	}
+	cacheControlMaxAge, err := strconv.Atoi(strings.TrimSpace(strings.Split(cacheControl, "=")[1]))
+	if err != nil {
+		return MSearchResult{}, errors.New("CACHE-CONTROL max-age not well formatted")
+	}
+
+	// Date in not "Required" but "Recommended" (see 1.3.3)
+	dateString, find := FindHeader(response, "DATE")
+	date := time.Now()
+	if find {
+		date, err = time.Parse(time.RFC1123, dateString)
+		if err != nil {
+			date = time.Now()
+		}
+	}
+
+	location, find := FindHeader(response, "LOCATION")
+	if !find {
+		return MSearchResult{}, errors.New("LOCATION not present")
+	}
+
+	server, find := FindHeader(response, "SERVER")
+	if !find {
+		return MSearchResult{}, errors.New("SERVER not present")
+	}
+
+	st, find := FindHeader(response, "ST")
+	if !find {
+		return MSearchResult{}, errors.New("ST not present")
+	}
+
+	usn, find := FindHeader(response, "USN")
+	if !find {
+		return MSearchResult{}, errors.New("USN not present")
+	}
+
+	return MSearchResult{
+		CacheControl: cacheControlMaxAge,
+		Date:         date,
+		Location:     location,
+		Server:       server,
+		St:           st,
+		USN:          usn,
+	}, nil
 }
+
+// --------------------------------------------------------------------------------------
+// For upnp device
+// --------------------------------------------------------------------------------------
 
 // TODO Make a saparete goroutine for each request
 func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
@@ -167,7 +243,7 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 				} else if err != nil && err.Error() == "Request not for this device" {
 					log.Debug("[ssdp] Request not for this device")
 				} else {
-					<-wait
+					<-wait // Fun fun fact: my tvs never wait and reply immediately
 					for _, response := range responses {
 						log.Debug("[ssdp] Responding to " + response.receiver.String() + " with " + response.message)
 						conn.WriteToUDP([]byte(response.message), &response.receiver)

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"mobile.dani.df/device-service"
 )
 
 /* See 2.3
@@ -160,14 +162,20 @@ type Icon struct {
 }
 
 type Service struct {
-	ServiceType    string
-	ServiceId      string
-	SCPDURL        string
-	EventSubURL    string
-	ControlURL     string
-	ControlHandler func() string
+	device.Device
+	ServiceType string
+	ServiceId   string
+	SCPDURL     string
+	EventSubURL string
+	ControlURL  string
+
+	Handler func([]device.Argument) device.Response
 
 	SCPD Spcd
+}
+
+func (service Service) ControlFunc(arguments ...device.Argument) device.Response {
+	return service.Handler(arguments)
 }
 
 type Spcd struct {
@@ -355,7 +363,7 @@ func (spcd Spcd) StringXML() string {
 	var result strings.Builder
 
 	result.WriteString("<?xml version=\"1.0\"?>\n")
-	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" xmlns:dt1=\"urn:domain-name:more-datatypes\" xmlns:dt2=\"urn:domain-name:vendor-datatypes\" configId=\"1\">\n") //TODO da capire
+	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" configId=\"1\">\n") //TODO da capire
 
 	result.WriteString(spcd.SpecVersion.StringXML())
 

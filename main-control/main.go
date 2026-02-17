@@ -2,18 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	"mobile.dani.df/logging"
-	"mobile.dani.df/mqtt"
 
-	//"mobile.dani.df/upnp-control-point"
-	"mobile.dani.df/upnp"
+	"mobile.dani.df/upnp-control-point"
+	//"mobile.dani.df/upnp"
 )
 
 func main() {
 	ctx := context.Background()
-	ctx = logging.Init(ctx)
+	ctx, log := logging.Init(ctx)
 
 	/*mqttConfig := mqtt.MqttConfig{
 		MqttBroker: "tcp://mqtt.df:1883",
@@ -35,12 +34,29 @@ func main() {
 
 	conn.Unsubscribe("homeassistant/#")*/
 
-	//upnp.Scan(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+	rootDevice, err := upnp.Search(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+	if err != nil {
+		log.Error("Error fetching rootDevices: " + err.Error())
+		return
+	}
+	log.Info("Found " + strconv.Itoa(len(rootDevice)) + " devices")
 
-	upnp.Search(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
-	//upnp.Search(ctx, "ssdp:all")
-}
+	testRootDevice := rootDevice[len(rootDevice)-1]
+	testService := testRootDevice.Device.Services[0]
 
-func printMessage(message mqtt.MqttMessage) {
-	fmt.Println("Received [" + message.Topic + "] " + message.Payload)
+	type TurnArgs struct {
+		StateValue string `xml:"StateValue"`
+	}
+	type TurnReply struct {
+	}
+
+	soap := testService.NewSOAPClient()
+	args := TurnArgs{
+		StateValue: "1",
+	}
+	reply := TurnReply{}
+	err = soap.PerformActionCtx(ctx, testService.ServiceType, "Turn", &args, &reply)
+	if err != nil {
+		log.Error("Error RPC: " + err.Error())
+	}
 }

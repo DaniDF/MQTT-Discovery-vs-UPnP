@@ -3,6 +3,7 @@ package upnp
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -23,6 +24,28 @@ type UDPPacket struct {
 func (m UDPPacket) String() string {
 	return m.source.String() + " says " + m.message
 }
+
+// --------------------------------------------------------------------------------------
+// For upnp control point
+// --------------------------------------------------------------------------------------
+
+func RetrieveDeviceDescriptor(ctx context.Context, maybeDevice MSearchResult) (string, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	responseHttp, err := http.Get(maybeDevice.Location)
+	if err != nil {
+		log.Error("Error while getting the device locator from: " + maybeDevice.Location)
+	}
+	defer responseHttp.Body.Close()
+
+	response, err := io.ReadAll(responseHttp.Body)
+
+	return string(response), err
+}
+
+// --------------------------------------------------------------------------------------
+// For upnp device
+// --------------------------------------------------------------------------------------
 
 var httpServerAddress = GetLocalIP()
 
@@ -105,7 +128,7 @@ func scpdURLHandler(ctx context.Context, rootDevice RootDevice, request *http.Re
 
 func serviceControlHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
 	serviceFoundHandler := func(service Service) {
-		fmt.Fprint(response, service.ControlHandler())
+		SoapControlHandler(ctx, rootDevice, service, request, response)
 	}
 
 	serviceNotFoundHandler := func() {
@@ -125,7 +148,7 @@ func serviceRequestHandler(ctx context.Context, rootDevice RootDevice, request *
 
 	prepareOKresponse := func() {
 		log.Info("[http] Request from " + request.RemoteAddr + " resource " + request.RequestURI + " -> OK - FOUND")
-		response.Header().Set("Content-Type", "application/xml")
+		response.Header().Set("Content-Type", "text/xml")
 		response.WriteHeader(http.StatusOK)
 	}
 
