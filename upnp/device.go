@@ -180,13 +180,13 @@ func (service Service) ControlFunc(arguments ...device.Argument) device.Response
 
 type Spcd struct {
 	SpecVersion       SpecVersion
-	actionList        []Action
+	actionList        []FormalAction
 	ServiceStateTable []*StateVariable
 }
 
 // Add the provided action to the SPCD.
 // Rises an "StateVariable not found" if at least one of the arguments has a RelatedStateVariable not present in ServiceStateTable.
-func (spcd *Spcd) AddAction(action Action) error {
+func (spcd *Spcd) AddAction(action FormalAction) error {
 	flagFoundArgumentStateVariable := true
 	for _, argument := range action.ArgumentList {
 
@@ -207,25 +207,25 @@ func (spcd *Spcd) AddAction(action Action) error {
 	return nil
 }
 
-type Action struct {
+type FormalAction struct {
 	Name         string
-	ArgumentList []Argument
+	ArgumentList []FormalArgument
 }
 
-type Argument struct {
+type FormalArgument struct {
 	Name                 string
-	Direction            ArgumentDirection
+	Direction            FormalArgumentDirection
 	RelatedStateVariable *StateVariable
 }
 
-type ArgumentDirection string
+type FormalArgumentDirection string
 
 const (
-	In  ArgumentDirection = "in"
-	Out ArgumentDirection = "out"
+	In  FormalArgumentDirection = "in"
+	Out FormalArgumentDirection = "out"
 )
 
-func (argumentDirection ArgumentDirection) String() string {
+func (argumentDirection FormalArgumentDirection) String() string {
 	switch argumentDirection {
 	case In:
 		return "in"
@@ -363,7 +363,7 @@ func (spcd Spcd) StringXML() string {
 	var result strings.Builder
 
 	result.WriteString("<?xml version=\"1.0\"?>\n")
-	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" configId=\"1\">\n") //TODO da capire
+	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" configId=\"1\">\n")
 
 	result.WriteString(spcd.SpecVersion.StringXML())
 
@@ -385,7 +385,7 @@ func (spcd Spcd) StringXML() string {
 	return result.String()
 }
 
-func (action Action) StringXML() string {
+func (action FormalAction) StringXML() string {
 	var result strings.Builder
 
 	result.WriteString("<action>\n")
@@ -402,7 +402,7 @@ func (action Action) StringXML() string {
 	return result.String()
 }
 
-func (argument Argument) StringXML() string {
+func (argument FormalArgument) StringXML() string {
 	var result strings.Builder
 
 	result.WriteString("<argument>\n")

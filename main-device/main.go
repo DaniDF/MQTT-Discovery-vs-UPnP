@@ -73,11 +73,21 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, log := logging.Init(ctx)
 
-	stateVariable := upnp.StateVariable{
+	stateValueVariable := upnp.StateVariable{
 		SendEvents:        true,
 		Multicast:         false,
 		Name:              "state",
-		DataType:          "bool",
+		DataType:          "string",
+		DefaultValue:      "0",
+		AllowedValueRange: nil,
+		AllowedValueList:  nil,
+	}
+
+	actualValueVariable := upnp.StateVariable{
+		SendEvents:        true,
+		Multicast:         false,
+		Name:              "actualState",
+		DataType:          "string",
 		DefaultValue:      "0",
 		AllowedValueRange: nil,
 		AllowedValueList:  nil,
@@ -88,16 +98,21 @@ func main() {
 			Major: "1",
 			Minor: "1",
 		},
-		ServiceStateTable: []*upnp.StateVariable{&stateVariable},
+		ServiceStateTable: []*upnp.StateVariable{&stateValueVariable, &actualValueVariable},
 	}
 
-	err := spcd.AddAction(upnp.Action{
+	err := spcd.AddAction(upnp.FormalAction{
 		Name: "Turn",
-		ArgumentList: []upnp.Argument{
+		ArgumentList: []upnp.FormalArgument{
 			{
 				Name:                 "StateValue",
 				Direction:            upnp.In,
-				RelatedStateVariable: &stateVariable,
+				RelatedStateVariable: &stateValueVariable,
+			},
+			{
+				Name:                 "ActualValue",
+				Direction:            upnp.Out,
+				RelatedStateVariable: &actualValueVariable,
 			},
 		},
 	})
@@ -108,7 +123,19 @@ func main() {
 	rootDevice.Device.ServiceList[0].SCPD = spcd
 	rootDevice.Device.ServiceList[0].Handler = func(argument []device.Argument) device.Response {
 		log.Debug("Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + argument[0].Value)
-		return device.Response{}
+
+		switch argument[0].Value {
+		case "0", "1":
+			return device.Response{
+				Value: argument[0].Value,
+			}
+		default:
+			return device.Response{
+				ErrorCode:    101,
+				ErrorMessage: "Test application error",
+			}
+		}
+
 	}
 
 	upnp.HttpServer(ctx, rootDevice, devicePresentationUrl)

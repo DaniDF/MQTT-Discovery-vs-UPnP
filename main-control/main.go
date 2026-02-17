@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"mobile.dani.df/logging"
 
 	"mobile.dani.df/upnp-control-point"
-	//"mobile.dani.df/upnp"
 )
 
 func main() {
@@ -41,6 +41,8 @@ func main() {
 	}
 	log.Info("Found " + strconv.Itoa(len(rootDevice)) + " devices")
 
+	startTime := time.Now()
+
 	testRootDevice := rootDevice[len(rootDevice)-1]
 	testService := testRootDevice.Device.Services[0]
 
@@ -48,6 +50,7 @@ func main() {
 		StateValue string `xml:"StateValue"`
 	}
 	type TurnReply struct {
+		ActualValue string `xml:"ActualValue"`
 	}
 
 	soap := testService.NewSOAPClient()
@@ -59,4 +62,9 @@ func main() {
 	if err != nil {
 		log.Error("Error RPC: " + err.Error())
 	}
+	log.Info("RPC returned: " + reply.ActualValue)
+
+	elapsedTime := time.Since(startTime)
+
+	log.Info("Elapsed time: " + elapsedTime.String())
 }

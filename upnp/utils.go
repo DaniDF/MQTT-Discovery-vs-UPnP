@@ -36,3 +36,26 @@ func AlertAfter(timeout time.Duration, channel chan bool) {
 		channel <- true
 	}()
 }
+
+func find[T any](elements []T, filter func(T) bool) []T {
+	var result []T
+
+	for _, element := range elements {
+		if filter(element) {
+			result = append(result, element)
+		}
+	}
+
+	return result
+}
+
+func findFirst[T any](elements []T, filter func(T) bool) (T, bool) {
+	var result T
+
+	findResult := find(elements, filter)
+	if len(findResult) == 0 {
+		return result, false
+	}
+
+	return findResult[0], true
+}

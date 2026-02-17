@@ -128,7 +128,7 @@ func scpdURLHandler(ctx context.Context, rootDevice RootDevice, request *http.Re
 
 func serviceControlHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
 	serviceFoundHandler := func(service Service) {
-		SoapControlHandler(ctx, rootDevice, service, request, response)
+		SoapControlHandler(ctx, service, request, response)
 	}
 
 	serviceNotFoundHandler := func() {

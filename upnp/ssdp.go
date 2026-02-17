@@ -206,6 +206,7 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 	}
 	defer conn.Close()
 
+	log.Info("[ssdp] Listening for request")
 	messageBuffer := make([]byte, 1024)
 	for {
 		n, source, err := conn.ReadFromUDP(messageBuffer)

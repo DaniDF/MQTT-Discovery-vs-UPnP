@@ -10,5 +10,7 @@ type Argument struct {
 }
 
 type Response struct {
-	Value string
+	Value        string
+	ErrorCode    int // Value different from 0 will be considered errors (in that case Value is ignored)
+	ErrorMessage string
 }
