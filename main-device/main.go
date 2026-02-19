@@ -122,10 +122,11 @@ func main() {
 
 	rootDevice.Device.ServiceList[0].SCPD = spcd
 	rootDevice.Device.ServiceList[0].Handler = func(argument []device.Argument) device.Response {
-		log.Debug("Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + argument[0].Value)
+		log.Debug("[service] Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + argument[0].Value)
 
 		switch argument[0].Value {
 		case "0", "1":
+			upnp.NotifySubscribers(rootDevice.Device.ServiceList[0], []device.Argument{argument[0]})
 			return device.Response{
 				Value: argument[0].Value,
 			}
@@ -135,9 +136,9 @@ func main() {
 				ErrorMessage: "Test application error",
 			}
 		}
-
 	}
 
+	upnp.GenaSubscriptionDaemon(ctx)
 	upnp.HttpServer(ctx, rootDevice, devicePresentationUrl)
 	upnp.SsdpDevice(ctx, rootDevice)
 

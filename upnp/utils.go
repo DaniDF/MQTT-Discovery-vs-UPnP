@@ -59,3 +59,32 @@ func findFirst[T any](elements []T, filter func(T) bool) (T, bool) {
 
 	return findResult[0], true
 }
+
+func StringToCSV(slice []string) string {
+	var result strings.Builder
+
+	for i, element := range slice {
+		if i != 0 {
+			result.WriteString(",")
+		}
+		result.WriteString(element)
+	}
+
+	return result.String()
+}
+
+type EqualComparable[T any] interface {
+	Equal(T) bool
+}
+
+// Deletes all the oppurence of element in slice
+func DeleteElement[T EqualComparable[T]](slice []T, element T) []T {
+	var result []T
+	for _, el := range slice {
+		if el.Equal(element) {
+			result = append(result, el)
+		}
+	}
+
+	return result
+}

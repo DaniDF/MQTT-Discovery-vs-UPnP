@@ -2,6 +2,7 @@ package upnp
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/huin/goupnp"
 	"mobile.dani.df/upnp"
@@ -19,12 +20,13 @@ func ConvertRootDevices(goupnpRootDevices []goupnp.RootDevice) []upnp.RootDevice
 
 func ConvertRootDevice(goupnpRootDevice goupnp.RootDevice) upnp.RootDevice {
 	return upnp.RootDevice{
-		SpecVersion: convertSpecVersion(goupnpRootDevice.SpecVersion),
+		SpecVersion: ConvertSpecVersion(goupnpRootDevice.SpecVersion),
+		URLBase:     goupnpRootDevice.URLBaseStr,
 		Device:      ConvertDevice(goupnpRootDevice.Device),
 	}
 }
 
-func convertSpecVersion(goupnpSpecVersion goupnp.SpecVersion) upnp.SpecVersion {
+func ConvertSpecVersion(goupnpSpecVersion goupnp.SpecVersion) upnp.SpecVersion {
 	return upnp.SpecVersion{
 		Major: strconv.Itoa(int(goupnpSpecVersion.Major)),
 		Minor: strconv.Itoa(int(goupnpSpecVersion.Minor)),
@@ -34,12 +36,12 @@ func convertSpecVersion(goupnpSpecVersion goupnp.SpecVersion) upnp.SpecVersion {
 func ConvertDevice(goupnpDevice goupnp.Device) upnp.Device {
 	icons := []upnp.Icon{}
 	for _, icon := range goupnpDevice.Icons {
-		icons = append(icons, convertIcon(icon))
+		icons = append(icons, ConvertIcon(icon))
 	}
 
 	services := []upnp.Service{}
 	for _, service := range goupnpDevice.Services {
-		services = append(services, convertService(service))
+		services = append(services, ConvertService(service))
 	}
 
 	devices := []upnp.Device{}
@@ -66,7 +68,7 @@ func ConvertDevice(goupnpDevice goupnp.Device) upnp.Device {
 	}
 }
 
-func convertIcon(goupnpIcon goupnp.Icon) upnp.Icon {
+func ConvertIcon(goupnpIcon goupnp.Icon) upnp.Icon {
 	return upnp.Icon{
 		Mimetype: goupnpIcon.Mimetype,
 		Height:   strconv.Itoa(int(goupnpIcon.Height)),
@@ -76,7 +78,7 @@ func convertIcon(goupnpIcon goupnp.Icon) upnp.Icon {
 	}
 }
 
-func convertService(goupnpService goupnp.Service) upnp.Service {
+func ConvertService(goupnpService goupnp.Service) upnp.Service {
 	return upnp.Service{
 		ServiceType: goupnpService.ServiceType,
 		ServiceId:   goupnpService.ServiceId,
@@ -84,4 +86,93 @@ func convertService(goupnpService goupnp.Service) upnp.Service {
 		EventSubURL: goupnpService.EventSubURL.Str,
 		ControlURL:  goupnpService.ControlURL.Str,
 	}
+}
+
+func StringRootDevice(rootDevice goupnp.RootDevice) string {
+	var result strings.Builder
+
+	result.WriteString("RootDevice:\n")
+	result.WriteString("\t" + strings.ReplaceAll(StringSpecVersion(rootDevice.SpecVersion), "\n", "\n\t"))
+	result.WriteString("\n")
+
+	if len(StringUrlBase(rootDevice.URLBaseStr)) > 0 {
+		result.WriteString("\t" + strings.ReplaceAll(StringUrlBase(rootDevice.URLBaseStr), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	result.WriteString("\t" + strings.ReplaceAll(StringDevice(rootDevice.Device), "\n", "\n\t"))
+
+	return result.String()
+}
+
+func StringSpecVersion(specVersion goupnp.SpecVersion) string {
+	return "SpecVersion: " + strconv.Itoa(int(specVersion.Major)) + "." + strconv.Itoa(int(specVersion.Minor))
+}
+
+func StringUrlBase(urlBase string) string {
+	result := ""
+
+	if len(urlBase) > 0 {
+		result = "URLBase: " + urlBase
+	}
+
+	return result
+}
+
+func StringDevice(device goupnp.Device) string {
+	var result strings.Builder
+
+	result.WriteString("Device:\n")
+	result.WriteString("\tDeviceType: " + device.DeviceType + "\n")
+	result.WriteString("\tUDN: " + device.UDN + "\n")
+	result.WriteString("\tFriendlyName: " + device.FriendlyName + "\n")
+	result.WriteString("\tManufacturer: " + device.Manufacturer + "\n")
+	result.WriteString("\tManufacturerURL: " + device.ManufacturerURL.Str + "\n")
+	result.WriteString("\tModelName: " + device.ModelName + "\n")
+	result.WriteString("\tModelURL: " + device.ModelURL.Str + "\n")
+	result.WriteString("\tModelDescription: " + device.ModelDescription + "\n")
+	result.WriteString("\tModelNumber: " + device.ModelNumber + "\n")
+	result.WriteString("\tSerialNumber: " + device.SerialNumber + "\n")
+	result.WriteString("\tUPC: " + device.UPC + "\n")
+	result.WriteString("\tPresentationURL: " + device.PresentationURL.Str + "\n")
+
+	for _, icon := range device.Icons {
+		result.WriteString("\t" + strings.ReplaceAll(StringIcon(icon), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	for _, service := range device.Services {
+		result.WriteString("\t" + strings.ReplaceAll(StringService(service), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	for _, embeddedDevice := range device.Devices {
+		result.WriteString("\t" + strings.ReplaceAll(StringDevice(embeddedDevice), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+func StringIcon(icon goupnp.Icon) string {
+	var result strings.Builder
+
+	result.WriteString("Icon: " + icon.Mimetype)
+	result.WriteString(", (" + strconv.Itoa(int(icon.Width)) + "x" + strconv.Itoa(int(icon.Height)) + "x" + strconv.Itoa(int(icon.Depth)) + ")")
+	result.WriteString(", " + icon.URL.Str)
+
+	return result.String()
+}
+
+func StringService(service goupnp.Service) string {
+	var result strings.Builder
+
+	result.WriteString("Service:\n")
+	result.WriteString("\tServiceType: " + service.ServiceType + "\n")
+	result.WriteString("\tServiceId: " + service.ServiceId + "\n")
+	result.WriteString("\tSCPDURL: " + service.SCPDURL.Str + "\n")
+	result.WriteString("\tEventSubURL: " + service.EventSubURL.Str + "\n")
+	result.WriteString("\tControlURL: " + service.ControlURL.Str + "\n")
+
+	return result.String()
 }

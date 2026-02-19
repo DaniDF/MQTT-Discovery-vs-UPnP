@@ -43,6 +43,12 @@ func RetrieveDeviceDescriptor(ctx context.Context, maybeDevice MSearchResult) (s
 	return string(response), err
 }
 
+// Sends the specified request
+func SendRequest(request *http.Request) (*http.Response, error) {
+	httpClient := http.Client{}
+	return httpClient.Do(request)
+}
+
 // --------------------------------------------------------------------------------------
 // For upnp device
 // --------------------------------------------------------------------------------------
@@ -65,6 +71,7 @@ func HttpServer(ctx context.Context, rootDevice RootDevice, devicePresentationUr
 		for _, service := range rootDevice.Device.ServiceList {
 			http.HandleFunc(service.SCPDURL, func(resp http.ResponseWriter, req *http.Request) { scpdURLHandler(ctx, rootDevice, req, resp) })
 			http.HandleFunc(service.ControlURL, func(resp http.ResponseWriter, req *http.Request) { serviceControlHandler(ctx, rootDevice, req, resp) })
+			http.HandleFunc(service.EventSubURL, func(resp http.ResponseWriter, req *http.Request) { serviceEventHandler(ctx, rootDevice, req, resp) })
 		}
 		for _, embeddedDevice := range rootDevice.Device.EmbeddedDevices {
 			for _, service := range embeddedDevice.ServiceList {
@@ -113,6 +120,7 @@ func deviceDescriptionHandler(ctx context.Context, rootDevice RootDevice, reques
 
 func scpdURLHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
 	serviceFoundHandler := func(service Service) {
+		response.WriteHeader(http.StatusOK)
 		fmt.Fprint(response, service.SCPD.StringXML())
 	}
 
@@ -141,6 +149,26 @@ func serviceControlHandler(ctx context.Context, rootDevice RootDevice, request *
 	}, serviceFoundHandler, serviceNotFoundHandler)
 }
 
+func serviceEventHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
+	serviceFoundHandler := func(service Service) {
+		switch request.Method {
+		case "SUBSCRIBE":
+			GenaSubscriptionHandler(ctx, service, request, response)
+		case "UNSUBSCRIBE":
+			GenaUnsubscriptionHandler(ctx, service, request, response)
+		}
+	}
+
+	serviceNotFoundHandler := func() {
+		response.WriteHeader(http.StatusNotImplemented)
+		fmt.Fprint(response, "Sorry come later I'll Harder, Better, Faster, Stronger")
+	}
+
+	serviceRequestHandler(ctx, rootDevice, request, response, func(s Service) string {
+		return s.EventSubURL
+	}, serviceFoundHandler, serviceNotFoundHandler)
+}
+
 func serviceRequestHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter, extractor func(Service) string, serviceFoundHandler func(Service), serviceNotFoundHandler func()) {
 	log := ctx.Value("logger").(logging.Logger)
 
@@ -149,7 +177,6 @@ func serviceRequestHandler(ctx context.Context, rootDevice RootDevice, request *
 	prepareOKresponse := func() {
 		log.Info("[http] Request from " + request.RemoteAddr + " resource " + request.RequestURI + " -> OK - FOUND")
 		response.Header().Set("Content-Type", "text/xml")
-		response.WriteHeader(http.StatusOK)
 	}
 
 	prepareBadresponse := func() {

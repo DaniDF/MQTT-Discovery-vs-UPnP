@@ -199,6 +199,7 @@ func getInArguments(formalArguments []FormalArgument, actualArguments []ActualAr
 
 // Generates a positive response
 func generetePositiveResponse(response http.ResponseWriter, actionNameResponseString string) {
+	response.WriteHeader(http.StatusOK)
 	fmt.Fprint(response, "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n")
 	fmt.Fprint(response, "<s:Body>\n")
 
@@ -212,7 +213,7 @@ func generetePositiveResponse(response http.ResponseWriter, actionNameResponseSt
 func generateErrorResponse(errorCode int, errorMessage string, response http.ResponseWriter) {
 	response.Header().Set("CONTENT-TYPE", "text/xml; charset=\"utf-8\"")
 	response.Header().Set("DATE", time.Now().Format(time.RFC1123))
-	response.Header().Set("SERVER", "DFOS/1.1 UPnP/2.0 product/version")
+	response.Header().Set("SERVER", ServerUserAgent)
 	response.WriteHeader(http.StatusInternalServerError)
 
 	fmt.Fprint(response, "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n")

@@ -1,0 +1,588 @@
+package upnp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"mobile.dani.df/device-service"
+	"mobile.dani.df/logging"
+)
+
+const (
+	genaSubscriptionTimeoutSeconds = 1800
+	genaMulticastNotificationHost  = "239.255.255.246:7900"
+)
+
+type GenaMulticastEventLevels string
+
+const (
+	Emergency GenaMulticastEventLevels = "upnp:/emergency"
+	Fault     GenaMulticastEventLevels = "upnp:/fault"
+	Warning   GenaMulticastEventLevels = "upnp:/warning"
+	Info      GenaMulticastEventLevels = "upnp:/info"
+	Debug     GenaMulticastEventLevels = "upnp:/debug"
+	General   GenaMulticastEventLevels = "upnp:/general"
+)
+
+func (level GenaMulticastEventLevels) String() string {
+	switch level {
+	case Emergency:
+		return "upnp:/emergency"
+	case Fault:
+		return "upnp:/fault"
+	case Warning:
+		return "upnp:/warning"
+	case Info:
+		return "upnp:/info"
+	case Debug:
+		return "upnp:/debug"
+	case General:
+		return "upnp:/general"
+	default:
+		return "upnp:/general"
+	}
+}
+
+type subscriptionRequest struct {
+	sid       string
+	userAgent string
+	callback  *url.URL
+	nt        string
+	timeout   int
+	statevar  []string
+}
+
+func (request subscriptionRequest) String() string {
+	var result strings.Builder
+
+	result.WriteString("USER-AGENT: " + request.userAgent + "\n")
+	result.WriteString("CALLBACK: " + request.callback.String() + "\n")
+	result.WriteString("NT: " + request.nt + "\n")
+	result.WriteString("TIMEOUT: " + strconv.Itoa(request.timeout) + "\n")
+	result.WriteString("STATEVAR: [" + StringToCSV(request.statevar) + "]")
+
+	return result.String()
+}
+
+// See 4.1.1
+type subscriber struct {
+	eventKey             int
+	httpSuppertedVersion string
+	userAgent            string
+}
+
+type subscription struct {
+	sid        int64
+	subscriber subscriber
+	service    Service
+	stateVar   []string
+	creation   time.Time
+	timeout    int
+	callback   *url.URL
+}
+
+func (subscription subscription) Equal(other subscription) bool {
+	return subscription.sid == other.sid
+}
+
+type stateVariableValue struct {
+	stateVar *StateVariable
+	value    string
+}
+
+type notification struct {
+	service             Service
+	stateVariableValues []stateVariableValue
+}
+
+var insertUpdateSubscription = make(chan subscription, 128)
+var deleteSubscription = make(chan int64, 128)
+var notificationStateChange = make(chan notification, 128)
+var subscriptionsDB = make(map[int64]subscription)          //TODO Also consider sync.Map
+var serviceSubscriptionDB = make(map[string][]subscription) //TODO Also consider sync.Map
+
+// --------------------------------------------------------------------------------------
+// For upnp control point
+// --------------------------------------------------------------------------------------
+
+func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, stateVars ...string) (*context.CancelFunc, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	listenCtx, cancel := context.WithCancel(ctx)
+	addr, err := listenAt(listenCtx, 0, GenaSubscriptionEventHandler)
+	if err != nil {
+		log.Error("[gena] An error occurred while listening for events: " + err.Error())
+		cancel()
+		return nil, err
+	}
+	log.Info("[gena] Start listening for subscription messages at " + addr.String())
+
+	var rootUrl *url.URL
+	if len(rootDevice.Device.PresentationURL) > 0 {
+		if rootDevice.Device.PresentationURL[len(rootDevice.Device.PresentationURL)-1] == '/' {
+			rootDevice.Device.PresentationURL = rootDevice.Device.PresentationURL[:len(rootDevice.Device.PresentationURL)-1]
+		}
+		rootUrl, err = url.Parse(rootDevice.Device.PresentationURL)
+
+		if err != nil {
+			log.Warn("[gena] An error occurred while parsing presetation url (upnp 1.1): " + err.Error())
+			rootUrl = nil
+		}
+	}
+
+	// URLBase as fallback
+	if rootUrl == nil {
+		if len(rootDevice.URLBase) > 0 {
+			if rootDevice.URLBase[len(rootDevice.URLBase)-1] == '/' {
+				rootDevice.URLBase = rootDevice.URLBase[:len(rootDevice.URLBase)-1]
+			}
+			rootUrl, err = url.Parse(rootDevice.URLBase + service.EventSubURL)
+
+			if err != nil {
+				log.Error("[gena] An error occurred while parsing URLBase (upnp <1.1): " + err.Error())
+				cancel()
+				return nil, err
+			}
+		} else {
+			log.Error("[gena] Nor presentation url neither URLBase (upnp <= 1.1) are valid")
+			cancel()
+			return nil, errors.New("Device without valid url")
+		}
+	}
+
+	subscriptionUrl, _ := url.Parse(rootUrl.Scheme + "://" + rootUrl.Host + service.EventSubURL)
+
+	log.Debug("[gena] Attempting subscription at: " + subscriptionUrl.String())
+
+	subscriptionRequest, err := http.NewRequest("SUBSCRIBE", subscriptionUrl.String(), nil)
+	if err != nil {
+		log.Error("[gena] An error occurred while creating a new request: " + err.Error())
+		cancel()
+		return nil, err
+	}
+
+	callbackUrl := "http://" + GetLocalIP() + ":" + strconv.Itoa(addr.Port)
+
+	subscriptionRequest.Header.Set("HOST", subscriptionUrl.Host)
+	subscriptionRequest.Header.Set("USER-AGENT", ClientUserAgent)
+	subscriptionRequest.Header.Set("CALLBACK", "<"+callbackUrl+">")
+	subscriptionRequest.Header.Set("NT", "upnp:event")
+	subscriptionRequest.Header.Set("TIMEOUT", "Second-"+strconv.Itoa(genaSubscriptionTimeoutSeconds))
+
+	// STATEVARS is recommended not required (see 4.1.2)
+	if len(stateVars) > 0 {
+		var stateVarCSV strings.Builder
+		for i, stateVar := range stateVars {
+			if i != 0 {
+				stateVarCSV.WriteString(",")
+			}
+			stateVarCSV.WriteString(stateVar)
+		}
+		subscriptionRequest.Header.Set("STATEVAR", stateVarCSV.String())
+	}
+
+	httpClient := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	subscriptionResponse, err := httpClient.Do(subscriptionRequest)
+	if err != nil {
+		log.Error("[gena] Error while sending subscription request: " + err.Error())
+		cancel()
+		return nil, err
+	}
+	defer subscriptionResponse.Body.Close()
+
+	if subscriptionResponse.StatusCode != 200 {
+		log.Error("[gena] Subscription returned with code: " + subscriptionResponse.Status)
+		cancel()
+		return nil, errors.New(subscriptionResponse.Status)
+	}
+
+	data, err := io.ReadAll(subscriptionResponse.Body)
+	if err != nil {
+		log.Error("[gena] Error while reading subscription response data: " + err.Error())
+		cancel()
+		return nil, err
+	}
+
+	log.Info("[gena] Subscription returned with code: " + subscriptionResponse.Status + " - " + string(data))
+
+	return &cancel, nil
+}
+
+func GenaSubscriptionEventHandler(ctx context.Context, packet UDPPacket) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	log.Debug("[gena] Received from " + packet.source.String() + " subscription message: " + packet.message)
+}
+
+// Listen to a specified port for UDP connection. When a client connects the handler function is invoked.
+// If port = 0 is selected a random port number.
+func listenAt(ctx context.Context, port int, handler func(context.Context, UDPPacket)) (*net.UDPAddr, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: port})
+	if err != nil {
+		log.Error("[gena] Error while listening UDP packet")
+		return nil, err
+	}
+
+	go func() {
+		defer conn.Close()
+
+		messageBuffer := make([]byte, 1024)
+		for {
+			n, source, err := conn.ReadFromUDP(messageBuffer)
+			if err != nil {
+				log.Error("[gena] Error while receiving UDP packet")
+				return
+			}
+
+			go func() {
+				handler(ctx, UDPPacket{
+					source:  *source,
+					message: string(messageBuffer[:n]),
+				})
+			}()
+
+			conn.WriteToUDP([]byte("HTTP/1.1 200 OK\r\n"), source)
+		}
+	}()
+
+	return conn.LocalAddr().(*net.UDPAddr), nil
+}
+
+// --------------------------------------------------------------------------------------
+// For upnp device
+// --------------------------------------------------------------------------------------
+
+func GenaSubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
+	log := ctx.Value("logger").(logging.Logger)
+
+	subscriptionRequest, err := parseSubscriptionRequest(ctx, request)
+	if err != nil {
+		switch { // See 4.1.2 table 4-4
+		case err.Error() == "Callback paring error":
+			generateNegativeResponse(412, response)
+			return err
+		default:
+			generateNegativeResponse(400, response)
+			return err
+		}
+	}
+
+	var sid string
+	if subscriptionRequest.sid != "" && subscriptionRequest.nt == "" && subscriptionRequest.callback == nil { // Subscription update
+		sid, err = createNewSubscription(subscriptionRequest, service)
+
+	} else if subscriptionRequest.sid == "" && subscriptionRequest.nt == "upnp:event" && subscriptionRequest.callback != nil { //New subscription
+		sid, err = createNewSubscription(subscriptionRequest, service)
+
+	} else { // Error invalid combination
+		log.Warn("[gena] Received invalid subscription message: invalid combination of SID, NT, CALLBACK")
+		generateNegativeResponse(400, response)
+		return errors.New("Invalid combination of SID, NT, CALLBACK")
+	}
+
+	log.Debug("[gena] Received subscription with message: " + subscriptionRequest.String())
+
+	generatePositiveResponse(subscriptionRequest, sid, response)
+
+	return nil
+}
+
+func parseSubscriptionRequest(ctx context.Context, request *http.Request) (subscriptionRequest, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	result := subscriptionRequest{
+		sid:       request.Header.Get("SID"),
+		userAgent: request.Header.Get("USER-AGENT"),
+		callback:  nil,
+		nt:        request.Header.Get("NT"),
+		timeout:   -1,
+		statevar:  strings.Split(request.Header.Get("STATEVAR"), ","),
+	}
+
+	callback := request.Header.Get("CALLBACK")
+	if len(callback) > 0 {
+		callback = strings.TrimPrefix(callback, "<")
+		callback = strings.TrimSuffix(callback, ">")
+		callbackUrl, err := url.Parse(callback)
+		if err != nil {
+			log.Warn("[gena] Error while parsing callback url: " + err.Error())
+			return subscriptionRequest{}, errors.New("Callback paring error")
+		}
+		result.callback = callbackUrl
+	}
+
+	timeout := request.Header.Get("TIMEOUT")
+	if len(timeout) > 0 {
+		timeout = strings.TrimPrefix(timeout, "Second-")
+		timeoutInt, err := strconv.Atoi(timeout)
+		if err != nil {
+			log.Warn("[gena] Error while parsing timeout: " + err.Error())
+			return subscriptionRequest{}, err
+		}
+		result.timeout = timeoutInt
+	}
+
+	return result, nil
+}
+
+func createNewSubscription(subscriptionRequest subscriptionRequest, service Service) (string, error) {
+	subscriber := subscriber{
+		eventKey:             0,
+		httpSuppertedVersion: "1.0",
+		userAgent:            subscriptionRequest.userAgent,
+	}
+	now := time.Now() //TODO "now" is the current implementation of sid (check 1.1.4)
+	subscription := subscription{
+		sid:        now.UnixNano(),
+		subscriber: subscriber,
+		service:    service,
+		stateVar:   subscriptionRequest.statevar,
+		creation:   now,
+		timeout:    subscriptionRequest.timeout,
+		callback:   subscriptionRequest.callback,
+	}
+
+	insertUpdateSubscription <- subscription //TODO Check if it is successful
+
+	return fmt.Sprintf("%d", now.UnixNano()), nil
+}
+
+func GenaUnsubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
+	log := ctx.Value("logger").(logging.Logger)
+
+	unsubscribeRequestSid := request.Header.Get("SID")
+
+	sid, err := strconv.ParseInt(unsubscribeRequestSid, 10, 64)
+	if err != nil {
+		generateNegativeResponse(412, response)
+		return err
+	}
+
+	log.Debug("[gena] Received unsubscribe message, sid: " + unsubscribeRequestSid)
+
+	deleteSubscription <- sid
+
+	response.WriteHeader(200)
+
+	return nil
+}
+
+func generatePositiveResponse(subscriptionRequest subscriptionRequest, sid string, response http.ResponseWriter) {
+	response.Header().Set("DATE", time.Now().Format(time.RFC1123))
+	response.Header().Set("SERVER", ServerUserAgent)
+	response.Header().Set("SID", sid)
+	response.Header().Set("CONTENT-LENGTH", "0")
+	response.Header().Set("TIMEOUT", strconv.Itoa(subscriptionRequest.timeout))
+	if len(subscriptionRequest.statevar) > 0 {
+		response.Header().Set("ACCEPTED-STATEVAR", StringToCSV(subscriptionRequest.statevar))
+	}
+}
+
+func generateNegativeResponse(errorCode int, response http.ResponseWriter) {
+	response.WriteHeader(errorCode)
+}
+
+func GenaSubscriptionDaemon(ctx context.Context) {
+	go func() {
+		log := ctx.Value("logger").(logging.Logger)
+
+		dbLock := make(chan bool, 1)
+		dbLock <- true
+
+		log.Info("[gena] Starting subscription daemon")
+		for {
+			select {
+			case sid := <-deleteSubscription:
+				go func() {
+					<-dbLock
+
+					service := subscriptionsDB[sid].service
+					subscription := subscriptionsDB[sid]
+					serviceSubscriptionDB[service.ServiceId] = DeleteElement(serviceSubscriptionDB[service.ServiceId], subscription)
+					delete(subscriptionsDB, sid)
+
+					dbLock <- true
+				}()
+			case subscription := <-insertUpdateSubscription:
+				go func() {
+					<-dbLock
+
+					subscriptionsDB[subscription.sid] = subscription
+					serviceSubscriptionDB[subscription.service.ServiceId] = append(serviceSubscriptionDB[subscription.service.ServiceId], subscription)
+
+					dbLock <- true
+				}()
+			case notification := <-notificationStateChange:
+				go func() {
+					<-dbLock
+
+					subscribersOriginal := serviceSubscriptionDB[notification.service.ServiceId]
+					subscribers := make([]subscription, len(subscribersOriginal))
+					copy(subscribers, subscribersOriginal)
+
+					dbLock <- true
+
+					sendNotificationToSubscribers(ctx, notification, subscribers)
+				}()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+func NotifySubscribers(service Service, arguments []device.Argument) {
+	stateVariableValues := []stateVariableValue{}
+
+	for _, argument := range arguments {
+		for _, stateVariable := range service.SCPD.ServiceStateTable {
+			if argument.Name == stateVariable.Name {
+				stateVariableValues = append(stateVariableValues, stateVariableValue{
+					stateVar: stateVariable,
+					value:    argument.Value,
+				})
+			}
+		}
+	}
+
+	notificationStateChange <- notification{
+		service:             service,
+		stateVariableValues: stateVariableValues,
+	}
+}
+
+func sendNotificationToSubscribers(ctx context.Context, notification notification, subscriptions []subscription) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	sendNotification := func(packet UDPPacket) {
+		addr, err := net.ResolveUDPAddr("udp", packet.receiver.IP.String()+":"+strconv.Itoa(packet.receiver.Port))
+		if err != nil {
+			log.Error("[gena] Error while resolving address: " + err.Error())
+			return
+		}
+
+		conn, err := net.DialUDP("udp", nil, addr)
+		if err != nil {
+			log.Error("[gena] Error while dial UDP addres")
+			return
+		}
+		defer conn.Close()
+
+		_, err = conn.Write([]byte(packet.message))
+		if err != nil {
+			log.Error("[gena] Error while sending UDP packet")
+			return
+		}
+
+		messageBuffer := make([]byte, 1024)
+		n, source, err := conn.ReadFromUDP(messageBuffer)
+		if err != nil {
+			log.Error("[gena] Error while receiving UDP packet")
+			return
+		}
+
+		log.Info("[gena] Subscription: received from: " + source.IP.String() + ":" + strconv.Itoa(source.Port) + " message: " + string(messageBuffer[:n]))
+	}
+
+	for _, subscription := range subscriptions {
+		sid := fmt.Sprintf("%d", subscription.sid)
+		usn := ""
+
+		variableValueMap := map[string]string{}
+		variableValueMapMulticast := map[string]string{}
+		for _, stateVariableValue := range notification.stateVariableValues {
+			if stateVariableValue.stateVar.SendEvents && (len(subscription.stateVar) == 0 || slices.Contains(subscription.stateVar, stateVariableValue.stateVar.Name)) {
+				variableValueMap[stateVariableValue.stateVar.Name] = stateVariableValue.value
+				subscription.subscriber.eventKey++
+
+			}
+			if stateVariableValue.stateVar.Multicast {
+				variableValueMapMulticast[stateVariableValue.stateVar.Name] = stateVariableValue.value
+
+			}
+		}
+
+		go sendNotification(generateNotifyMessage(subscription.callback, sid, subscription.subscriber.eventKey, variableValueMap))
+		go sendNotification(generateNotifyMulticastMessage(subscription.callback, usn, subscription.service.ServiceId, subscription.subscriber.eventKey, Info, variableValueMap))
+	}
+}
+
+func generateNotifyMessage(host *url.URL, sid string, sequenceNumber int, variableValueMap map[string]string) UDPPacket {
+	var result strings.Builder
+
+	// See 4.3.2
+	result.WriteString("NOTIFY " + host.Path + " HTTP/1.0\r\n")
+	result.WriteString("HOST: delivery " + host.Host + "\r\n")
+	result.WriteString("CONTENT-TYPE: text/xml; charset=\"utf-8\"\r\n")
+	result.WriteString("NT: upnp:event\r\n")
+	result.WriteString("NTS: upnp:propchange\r\n")
+	result.WriteString("SID: " + sid + "\r\n")
+	result.WriteString("SEQ: " + strconv.Itoa(sequenceNumber) + "\r\n")
+	//result.WriteString("CONTENT-LENGTH: 0\r\n")
+	result.WriteString("\r\n")
+
+	result.WriteString("<?xml version=\"1.0\"?>\r\n")
+	result.WriteString("<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">\r\n")
+	result.WriteString("<e:property>\r\n")
+
+	for key, value := range variableValueMap {
+		result.WriteString("<" + key + ">" + value + "</" + key + ">\r\n")
+	}
+
+	result.WriteString("</e:property>\r\n")
+	result.WriteString("</e:propertyset>\r\n")
+
+	receiver, _ := net.ResolveUDPAddr("udp", host.Host)
+	return UDPPacket{
+		message:  result.String(),
+		receiver: *receiver,
+	}
+}
+
+func generateNotifyMulticastMessage(host *url.URL, usn string, serviceId string, sequenceNumber int, genaMulticastEventLevels GenaMulticastEventLevels, variableValueMap map[string]string) UDPPacket {
+	var result strings.Builder
+
+	// See 4.3.3
+	result.WriteString("NOTIFY * HTTP/1.0\r\n")
+	result.WriteString("HOST: " + genaMulticastNotificationHost + "\r\n")
+	result.WriteString("CONTENT-TYPE: text/xml; charset=\"utf-8\"\r\n")
+	result.WriteString("USN: " + usn + "\r\n")
+	result.WriteString("SVCID: " + serviceId + "\r\n")
+	result.WriteString("NT: upnp:event\r\n")
+	result.WriteString("NTS: upnp:propchange\r\n")
+	result.WriteString("SEQ: " + strconv.Itoa(sequenceNumber) + "\r\n")
+	result.WriteString("LVL: " + genaMulticastEventLevels.String() + "\r\n")
+	//result.WriteString("CONTENT-LENGTH: 0\r\n")
+	result.WriteString("\r\n")
+
+	result.WriteString("<?xml version=\"1.0\"?>\r\n")
+	result.WriteString("<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">\r\n")
+	result.WriteString("<e:property>\r\n")
+
+	for key, value := range variableValueMap {
+		result.WriteString("<" + key + ">" + value + "</" + key + ">\r\n")
+	}
+
+	result.WriteString("</e:property>\r\n")
+	result.WriteString("</e:propertyset>\r\n")
+
+	receiver, _ := net.ResolveUDPAddr("udp", host.Host)
+	return UDPPacket{
+		message:  result.String(),
+		receiver: *receiver,
+	}
+}

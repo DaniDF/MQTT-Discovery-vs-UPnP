@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	ssdpMulticastAddress      = "239.255.255.250"
-	ssdpMulticastPort         = 1900
-	ssdpNotifyValiditySeconds = 1800 // Seconds of validity for the NOTIFY message (see 1.2.2)
-	ssdpWaitMillisBeforeSend  = 100  // Milliseconds between sends in NOTIFY
-	ssdpMSearchMX             = 2
+	ssdpMulticastAddress               = "239.255.255.250"
+	ssdpMulticastPort                  = 1900
+	ssdpNotifyValiditySeconds          = 1800 // Seconds of validity for the NOTIFY message (see 1.2.2)
+	ssdpWaitMillisBeforeSend           = 100  // Milliseconds between sends in NOTIFY
+	ssdpMSearchMX                      = 2
+	ssdpMSearchResponseValiditySeconds = 600
 )
 
 type MSearchResult struct {
@@ -120,7 +121,7 @@ func generateSSDPMSearch(st string, mx int, receiverAddr string, receiverPort in
 		"MAN: \"ssdp:discover\"\r\n" +
 		"MX: " + strconv.Itoa(mx) + "\r\n" +
 		"ST: " + st + "\r\n" +
-		"USER-AGENT: DFOS/0.1 UPnP/2.0 123/1.1\r\n" +
+		"USER-AGENT: " + ServerUserAgent + "\r\n" +
 		"\r\n"
 	return UDPPacket{
 		receiver: net.UDPAddr{
@@ -318,11 +319,11 @@ func handleSSDPMSEARCHRequest(message UDPPacket, rootDevice RootDevice) ([]UDPPa
 // Produces an UDPPacket for responding to M-SEARCH as described in 1.3.3
 func generateSSDPResponseByDevice(st string, usn string, device Device, request UDPPacket) UDPPacket {
 	responseMessage := "HTTP/1.1 200 OK\r\n" +
-		"CACHE-CONTROL: max-age = 120\r\n" +
+		"CACHE-CONTROL: max-age = " + strconv.Itoa(ssdpMSearchResponseValiditySeconds) + "\r\n" +
 		"DATE: " + time.Now().Format(time.RFC1123) + "\r\n" +
 		"EXT:\r\n" +
 		"LOCATION: " + device.PresentationURL + "\r\n" +
-		"SERVER: DFOS/0.1 UPnP/2.0 123/1.1\r\n" +
+		"SERVER: " + ServerUserAgent + "\r\n" +
 		"ST: " + st + "\r\n" +
 		"USN: " + usn + "\r\n" +
 		"\r\n"
@@ -425,7 +426,7 @@ func generateSSDPNotifyMessageByDevice(nt string, usn string, device Device) UDP
 		"LOCATION: " + device.PresentationURL + "\r\n" +
 		"NT: " + nt + "\r\n" +
 		"NTS: ssdp:alive\r\n" +
-		"SERVER: DFOS/0.1 UPnP/2.0 123/1.1\r\n" +
+		"SERVER: " + ServerUserAgent + "\r\n" +
 		"USN: " + usn + "\r\n" +
 		"\r\n"
 	return UDPPacket{

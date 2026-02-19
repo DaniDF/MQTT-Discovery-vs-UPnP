@@ -127,6 +127,7 @@ import (
 
 type RootDevice struct {
 	SpecVersion SpecVersion
+	URLBase     string // See 2.3: "Use of URLBase is deprecated from UPnP 1.1 onwards; UPnP 2.0 devices shall NOT include URLBase in their description documents."
 	Device      Device
 }
 
