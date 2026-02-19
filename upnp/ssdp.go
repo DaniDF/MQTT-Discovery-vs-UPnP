@@ -80,7 +80,7 @@ func Search(ctx context.Context, st string) ([]MSearchResult, error) {
 func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]string, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	timeoutRead := make(chan bool)
+	timeoutRead := make(chan bool, 1)
 	AlertAfter(time.Duration(mx+1)*time.Second, timeoutRead)
 
 	responses := []string{}
@@ -186,7 +186,6 @@ func parseMSearchResponse(response string) (MSearchResult, error) {
 // For upnp device
 // --------------------------------------------------------------------------------------
 
-// TODO Make a saparete goroutine for each request
 func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 	log := ctx.Value("logger").(logging.Logger)
 	deviceXML := ""
@@ -211,22 +210,26 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 	messageBuffer := make([]byte, 1024)
 	for {
 		n, source, err := conn.ReadFromUDP(messageBuffer)
-		if err != nil {
-			log.Error("[ssdp] Error while receiving a message")
-		} else {
-			message := UDPPacket{
-				source:  *source,
-				message: string(messageBuffer[:n]),
-			}
-			log.Debug("[ssdp] Received message from " + message.source.String())
 
-			_, isMSearch := FindHeader(message.message, "M-SEARCH")
+		go func(message string, src net.UDPAddr, err error) {
+			if err != nil {
+				log.Error("[ssdp] Error while receiving a message")
+				return
+			}
+
+			packet := UDPPacket{
+				source:  *source,
+				message: message,
+			}
+			log.Debug("[ssdp] Received message from " + packet.source.String())
+
+			_, isMSearch := FindHeader(packet.message, "M-SEARCH")
 
 			if isMSearch {
-				log.Info("[ssdp] Received M-SEARCH from " + message.source.String())
+				log.Info("[ssdp] Received M-SEARCH from " + packet.source.String())
 				// MX wait seconds to send the response to prevent DOS (see 1.3.2)
-				wait := make(chan bool)
-				mx, findMx := FindHeader(message.message, "MX")
+				wait := make(chan bool, 1)
+				mx, findMx := FindHeader(packet.message, "MX")
 
 				if findMx {
 					mxValue, err := strconv.Atoi(mx)
@@ -238,7 +241,7 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 					wait <- true
 				}
 
-				responses, err := handleSSDPMSEARCHRequest(message, rootDevice)
+				responses, err := handleSSDPMSEARCHRequest(packet, rootDevice)
 
 				if err != nil && err.Error() == "Request not valid: ST not present" {
 					log.Warn("[ssdp] Received a M-SEARCH without ST header")
@@ -252,9 +255,10 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 					}
 				}
 			} else {
-				log.Debug("[ssdp] NOT M-SEARCH Received message from " + message.source.String())
+				log.Debug("[ssdp] NOT M-SEARCH Received message from " + packet.source.String())
 			}
-		}
+
+		}(string(messageBuffer[:n]), *source, err)
 	}
 }
 
