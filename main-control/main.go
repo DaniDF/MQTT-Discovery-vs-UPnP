@@ -37,20 +37,21 @@ func main() {
 
 	// Start - SSDP
 	//rootDevices, err := upnp.Search(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+	startSearchTime := time.Now()
 	rootDevices, err := upnp.Search(ctx, "ssdp:all")
 	if err != nil {
 		log.Error("Error fetching rootDevices: " + err.Error())
 		return
 	}
+	elapsedTime := time.Since(startSearchTime)
 	log.Info("Found " + strconv.Itoa(len(rootDevices)) + " devices")
+	log.Info("SEARCH Elapsed time: " + elapsedTime.String())
 
 	i := 0
 	for _, rootDevice := range rootDevices {
 		fmt.Println(strconv.Itoa(i) + ") " + upnp.StringRootDevice(rootDevice))
 		i++
 	}
-
-	startTime := time.Now()
 
 	testRootDevice := rootDevices["uuid:55076f6e-6b79-4d65-6401-00d0b811d10b"]
 	testService := testRootDevice.Device.Services[0]
@@ -63,18 +64,21 @@ func main() {
 	}
 	// End - SSDP
 
-	// Start - GENA
-	cancelP, err := upnp.Subscribe(ctx, testRootDevice, testService)
-	if err != nil {
-		log.Error("Error subscribing to " + testService.ServiceId + ", " + err.Error())
-		return
-	}
-	cancel := *cancelP
-	// End - GENA
+	/*
+		// Start - GENA
+		cancelP, err := upnp.Subscribe(ctx, testRootDevice, testService)
+		if err != nil {
+			log.Error("Error subscribing to " + testService.ServiceId + ", " + err.Error())
+			return
+		}
+		cancel := *cancelP
+		// End - GENA
 
-	time.Sleep(2 * time.Second)
+		time.Sleep(2 * time.Second)
+	*/
 
 	// Start - SOAP
+	startRPCTime := time.Now()
 	soap := testService.NewSOAPClient()
 	args := TurnArgs{
 		StateValue: "1",
@@ -86,11 +90,12 @@ func main() {
 	}
 	log.Info("RPC returned: " + reply.ActualValue)
 
-	elapsedTime := time.Since(startTime)
-
-	log.Info("Elapsed time: " + elapsedTime.String())
+	elapsedTime = time.Since(startRPCTime)
+	log.Info("SOAP Elapsed time: " + elapsedTime.String())
 	// End - SOAP
 
-	<-time.After(20 * time.Second)
-	cancel()
+	/*
+		<-time.After(20 * time.Second)
+		cancel()
+	*/
 }

@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	genaSubscriptionTimeoutSeconds = 1800
-	genaMulticastNotificationHost  = "239.255.255.246:7900"
+	genaSubscriptionTimeoutSeconds   = 1800
+	genaMulticastNotificationAddress = "239.255.255.246"
+	genaMulticastNotificationPort    = 7900
 )
 
 type GenaMulticastEventLevels string
@@ -114,11 +115,12 @@ var serviceSubscriptionDB = make(map[string][]subscription) //TODO Also consider
 // For upnp control point
 // --------------------------------------------------------------------------------------
 
-func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, stateVars ...string) (*context.CancelFunc, error) {
+func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, handler func(), stateVars ...string) (*context.CancelFunc, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	listenCtx, cancel := context.WithCancel(ctx)
-	addr, err := listenAt(listenCtx, 0, GenaSubscriptionEventHandler)
+	_, err := listenAtMulticast(listenCtx, genaMulticastNotificationAddress, genaMulticastNotificationPort, func(ctx context.Context, p UDPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
+	addr, err := listenAt(listenCtx, 0, func(ctx context.Context, p UDPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
 	if err != nil {
 		log.Error("[gena] An error occurred while listening for events: " + err.Error())
 		cancel()
@@ -220,7 +222,7 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	return &cancel, nil
 }
 
-func GenaSubscriptionEventHandler(ctx context.Context, packet UDPPacket) {
+func genaSubscriptionEventHandler(ctx context.Context, packet UDPPacket, _ func()) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	log.Debug("[gena] Received from " + packet.source.String() + " subscription message: " + packet.message)
@@ -237,7 +239,35 @@ func listenAt(ctx context.Context, port int, handler func(context.Context, UDPPa
 		return nil, err
 	}
 
+	listenAtDaemon(ctx, conn, handler)
+
+	return conn.LocalAddr().(*net.UDPAddr), nil
+}
+
+func listenAtMulticast(ctx context.Context, multicastAddress string, port int, handler func(context.Context, UDPPacket)) (*net.UDPAddr, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	addr, err := net.ResolveUDPAddr("udp4", multicastAddress+":"+strconv.Itoa(port))
+	if err != nil {
+		log.Error("[gena] Error while resolving address: " + err.Error())
+		return nil, errors.New("Resolve error")
+	}
+
+	conn, err := net.ListenMulticastUDP("udp", nil, addr)
+	if err != nil {
+		log.Error("[gena] Error while listening UDP packet")
+		return nil, err
+	}
+
+	listenAtDaemon(ctx, conn, handler)
+
+	return addr, nil
+}
+
+func listenAtDaemon(ctx context.Context, conn *net.UDPConn, handler func(context.Context, UDPPacket)) {
 	go func() {
+		log := ctx.Value("logger").(logging.Logger)
+
 		defer conn.Close()
 
 		messageBuffer := make([]byte, 1024)
@@ -258,8 +288,6 @@ func listenAt(ctx context.Context, port int, handler func(context.Context, UDPPa
 			conn.WriteToUDP([]byte("HTTP/1.1 200 OK\r\n"), source)
 		}
 	}()
-
-	return conn.LocalAddr().(*net.UDPAddr), nil
 }
 
 // --------------------------------------------------------------------------------------
@@ -558,7 +586,7 @@ func generateNotifyMulticastMessage(host *url.URL, usn string, serviceId string,
 
 	// See 4.3.3
 	result.WriteString("NOTIFY * HTTP/1.0\r\n")
-	result.WriteString("HOST: " + genaMulticastNotificationHost + "\r\n")
+	result.WriteString("HOST: " + genaMulticastNotificationAddress + ":" + strconv.Itoa(genaMulticastNotificationPort) + "\r\n")
 	result.WriteString("CONTENT-TYPE: text/xml; charset=\"utf-8\"\r\n")
 	result.WriteString("USN: " + usn + "\r\n")
 	result.WriteString("SVCID: " + serviceId + "\r\n")

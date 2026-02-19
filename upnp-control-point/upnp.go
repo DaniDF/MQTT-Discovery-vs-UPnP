@@ -30,6 +30,6 @@ func Search(ctx context.Context, st string) (map[string]goupnp.RootDevice, error
 	return devices, nil
 }
 
-func Subscribe(ctx context.Context, rootDevice goupnp.RootDevice, service goupnp.Service) (*context.CancelFunc, error) {
-	return upnp.GenaSubscribeToService(ctx, ConvertRootDevice(rootDevice), ConvertService(service))
+func Subscribe(ctx context.Context, rootDevice goupnp.RootDevice, service goupnp.Service, handler func()) (*context.CancelFunc, error) {
+	return upnp.GenaSubscribeToService(ctx, ConvertRootDevice(rootDevice), ConvertService(service), handler)
 }
