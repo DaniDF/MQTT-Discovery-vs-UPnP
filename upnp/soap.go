@@ -12,6 +12,7 @@ import (
 
 	device "mobile.dani.df/device-service"
 	"mobile.dani.df/logging"
+	"mobile.dani.df/utils"
 )
 
 const soapTimeoutSeconds = 30 // Timeout for a SOAP request (see 3.2.5)
@@ -107,7 +108,7 @@ func SoapControlHandler(ctx context.Context, deviceService Service, request *htt
 
 	log.Debug("[soap] Action name: " + envelope.Body.ActionName.XMLName.Local)
 
-	formalAction, findAction := findFirst(deviceService.SCPD.actionList, func(action FormalAction) bool {
+	formalAction, findAction := utils.FindFirst(deviceService.SCPD.actionList, func(action FormalAction) bool {
 		return action.Name == envelope.Body.ActionName.XMLName.Local
 	})
 	if !findAction {
@@ -115,7 +116,7 @@ func SoapControlHandler(ctx context.Context, deviceService Service, request *htt
 		return errors.New("Action not found")
 	}
 
-	formalInArguments := find(formalAction.ArgumentList, func(argument FormalArgument) bool {
+	formalInArguments := utils.Find(formalAction.ArgumentList, func(argument FormalArgument) bool {
 		return argument.Direction == In
 	})
 
@@ -128,7 +129,7 @@ func SoapControlHandler(ctx context.Context, deviceService Service, request *htt
 
 	deviceResponseChan := make(chan device.Response)
 	go func() {
-		deviceResponseChan <- deviceService.ControlFunc(inArguments...)
+		deviceResponseChan <- deviceService.Handler(inArguments...)
 	}()
 
 	var deviceResponse device.Response
@@ -144,7 +145,7 @@ func SoapControlHandler(ctx context.Context, deviceService Service, request *htt
 		return errors.New("Timeout")
 	}
 
-	formalOutArgument, findOutArgument := findFirst(formalAction.ArgumentList, func(argument FormalArgument) bool {
+	formalOutArgument, findOutArgument := utils.FindFirst(formalAction.ArgumentList, func(argument FormalArgument) bool {
 		return argument.Direction == Out
 	})
 
@@ -181,7 +182,7 @@ func getInArguments(formalArguments []FormalArgument, actualArguments []ActualAr
 	result := []device.Argument{}
 
 	for _, formalArgument := range formalArguments {
-		actualArgument, findActualArgument := findFirst(actualArguments, func(actual ActualArgumentName) bool {
+		actualArgument, findActualArgument := utils.FindFirst(actualArguments, func(actual ActualArgumentName) bool {
 			return actual.XMLName.Local == formalArgument.Name
 		})
 		if !findActualArgument {

@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/huin/goupnp"
+	"github.com/huin/goupnp/scpd"
 	"mobile.dani.df/upnp"
+	"mobile.dani.df/utils"
 )
 
 func ConvertRootDevices(goupnpRootDevices []goupnp.RootDevice) []upnp.RootDevice {
@@ -79,12 +81,94 @@ func ConvertIcon(goupnpIcon goupnp.Icon) upnp.Icon {
 }
 
 func ConvertService(goupnpService goupnp.Service) upnp.Service {
+	scpd, _ := goupnpService.RequestSCPD() //TODO handle error
+
 	return upnp.Service{
 		ServiceType: goupnpService.ServiceType,
 		ServiceId:   goupnpService.ServiceId,
 		SCPDURL:     goupnpService.SCPDURL.Str,
 		EventSubURL: goupnpService.EventSubURL.Str,
 		ControlURL:  goupnpService.ControlURL.Str,
+		SCPD:        ConvertSCPD(scpd),
+	}
+}
+
+func ConvertSCPD(s *scpd.SCPD) upnp.Spcd {
+	serviceStateTable := []*upnp.StateVariable{}
+
+	for _, stateVariable := range s.StateVariables {
+		serviceStateTable = append(serviceStateTable, ConvertSCPDStateVariable(stateVariable))
+	}
+
+	result := upnp.Spcd{
+		SpecVersion:       ConvertSCPDSpecVersion(s.SpecVersion),
+		ServiceStateTable: serviceStateTable,
+	}
+
+	for _, action := range s.Actions {
+		result.AddAction(ConvertAction(action, serviceStateTable))
+	}
+
+	return result
+}
+
+func ConvertSCPDSpecVersion(specVersion scpd.SpecVersion) upnp.SpecVersion {
+	return upnp.SpecVersion{
+		Major: strconv.Itoa(int(specVersion.Major)),
+		Minor: strconv.Itoa(int(specVersion.Minor)),
+	}
+}
+
+func ConvertSCPDStateVariable(stateVariable scpd.StateVariable) *upnp.StateVariable {
+	return &upnp.StateVariable{
+		SendEvents:   (stateVariable.SendEvents == "yes"),
+		Multicast:    (stateVariable.Multicast == "yes"),
+		Name:         stateVariable.Name,
+		DataType:     stateVariable.DataType.Name,
+		DefaultValue: stateVariable.DefaultValue,
+		//AllowedValueRange: ConvertAllowedValueRange(*stateVariable.AllowedValueRange),
+		AllowedValueList: stateVariable.AllowedValues,
+	}
+}
+
+func ConvertAllowedValueRange(allowedRange scpd.AllowedValueRange) upnp.ValueRange {
+	max, _ := strconv.Atoi(allowedRange.Maximum)
+	min, _ := strconv.Atoi(allowedRange.Minimum)
+	step, _ := strconv.Atoi(allowedRange.Step)
+	return upnp.ValueRange{
+		Maximum: max,
+		Minimum: min,
+		Step:    step,
+	}
+}
+
+func ConvertAction(action scpd.Action, serviceStateTable []*upnp.StateVariable) upnp.FormalAction {
+	argumentList := []upnp.FormalArgument{}
+
+	for _, argument := range action.Arguments {
+		argumentList = append(argumentList, ConvertArgument(argument, serviceStateTable))
+	}
+
+	return upnp.FormalAction{
+		Name:         action.Name,
+		ArgumentList: argumentList,
+	}
+}
+
+func ConvertArgument(argument scpd.Argument, serviceStateTable []*upnp.StateVariable) upnp.FormalArgument {
+	direction := upnp.In
+	if argument.IsOutput() {
+		direction = upnp.Out
+	}
+
+	relatedStateVariable, _ := utils.FindFirst(serviceStateTable, func(stateVariable *upnp.StateVariable) bool {
+		return stateVariable.Name == argument.RelatedStateVariable
+	})
+
+	return upnp.FormalArgument{
+		Name:                 argument.Name,
+		Direction:            direction,
+		RelatedStateVariable: relatedStateVariable,
 	}
 }
 

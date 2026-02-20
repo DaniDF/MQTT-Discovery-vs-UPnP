@@ -15,6 +15,7 @@ import (
 
 	"mobile.dani.df/device-service"
 	"mobile.dani.df/logging"
+	"mobile.dani.df/utils"
 )
 
 const (
@@ -69,7 +70,7 @@ func (request subscriptionRequest) String() string {
 	result.WriteString("CALLBACK: " + request.callback.String() + "\n")
 	result.WriteString("NT: " + request.nt + "\n")
 	result.WriteString("TIMEOUT: " + strconv.Itoa(request.timeout) + "\n")
-	result.WriteString("STATEVAR: [" + StringToCSV(request.statevar) + "]")
+	result.WriteString("STATEVAR: [" + utils.StringToCSV(request.statevar) + "]")
 
 	return result.String()
 }
@@ -115,7 +116,7 @@ var serviceSubscriptionDB = make(map[string][]subscription) //TODO Also consider
 // For upnp control point
 // --------------------------------------------------------------------------------------
 
-func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, handler func(), stateVars ...string) (*context.CancelFunc, error) {
+func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, handler func(string), stateVars ...string) (*context.CancelFunc, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	listenCtx, cancel := context.WithCancel(ctx)
@@ -172,7 +173,7 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 		return nil, err
 	}
 
-	callbackUrl := "http://" + GetLocalIP() + ":" + strconv.Itoa(addr.Port)
+	callbackUrl := "http://" + utils.GetLocalIP() + ":" + strconv.Itoa(addr.Port)
 
 	subscriptionRequest.Header.Set("HOST", subscriptionUrl.Host)
 	subscriptionRequest.Header.Set("USER-AGENT", ClientUserAgent)
@@ -222,10 +223,13 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	return &cancel, nil
 }
 
-func genaSubscriptionEventHandler(ctx context.Context, packet UDPPacket, _ func()) {
+func genaSubscriptionEventHandler(ctx context.Context, packet UDPPacket, handler func(string)) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	log.Debug("[gena] Received from " + packet.source.String() + " subscription message: " + packet.message)
+
+	//TODO parse the message and give only the values
+	handler(packet.message)
 }
 
 // Listen to a specified port for UDP connection. When a client connects the handler function is invoked.
@@ -416,7 +420,7 @@ func generatePositiveResponse(subscriptionRequest subscriptionRequest, sid strin
 	response.Header().Set("CONTENT-LENGTH", "0")
 	response.Header().Set("TIMEOUT", strconv.Itoa(subscriptionRequest.timeout))
 	if len(subscriptionRequest.statevar) > 0 {
-		response.Header().Set("ACCEPTED-STATEVAR", StringToCSV(subscriptionRequest.statevar))
+		response.Header().Set("ACCEPTED-STATEVAR", utils.StringToCSV(subscriptionRequest.statevar))
 	}
 }
 
@@ -440,7 +444,7 @@ func GenaSubscriptionDaemon(ctx context.Context) {
 
 					service := subscriptionsDB[sid].service
 					subscription := subscriptionsDB[sid]
-					serviceSubscriptionDB[service.ServiceId] = DeleteElement(serviceSubscriptionDB[service.ServiceId], subscription)
+					serviceSubscriptionDB[service.ServiceId] = utils.DeleteElement(serviceSubscriptionDB[service.ServiceId], subscription)
 					delete(subscriptionsDB, sid)
 
 					dbLock <- true

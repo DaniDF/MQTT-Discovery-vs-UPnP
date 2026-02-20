@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/net/ipv4"
 	"mobile.dani.df/logging"
+	"mobile.dani.df/utils"
 )
 
 const (
@@ -81,7 +82,7 @@ func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]st
 	log := ctx.Value("logger").(logging.Logger)
 
 	timeoutRead := make(chan bool, 1)
-	AlertAfter(time.Duration(mx+1)*time.Second, timeoutRead)
+	utils.AlertAfter(time.Duration(mx+1)*time.Second, timeoutRead)
 
 	responses := []string{}
 	messageBuffer := make([]byte, 1024)
@@ -235,7 +236,7 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 					mxValue, err := strconv.Atoi(mx)
 					if err == nil {
 						sleepTime := int((rand.Float32() * float32(mxValue)) * 1000)
-						AlertAfter(time.Duration(sleepTime)*time.Millisecond, wait)
+						utils.AlertAfter(time.Duration(sleepTime)*time.Millisecond, wait)
 					}
 				} else {
 					wait <- true

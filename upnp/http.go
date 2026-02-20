@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"mobile.dani.df/logging"
+	"mobile.dani.df/utils"
 )
 
 const (
@@ -53,7 +54,7 @@ func SendRequest(request *http.Request) (*http.Response, error) {
 // For upnp device
 // --------------------------------------------------------------------------------------
 
-var httpServerAddress = GetLocalIP()
+var httpServerAddress = utils.GetLocalIP()
 
 func HttpServer(ctx context.Context, rootDevice RootDevice, devicePresentationUrl string) {
 	go func() {

@@ -6,6 +6,8 @@ use (
 	./main-control
 	./main-device
 	./mqtt
+	./mqtt-control-point
 	./upnp
 	./upnp-control-point
+	./utils
 )

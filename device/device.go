@@ -2,6 +2,9 @@ package device
 
 type Device interface {
 	ControlFunc(arguments ...Argument) Response
+	StateFunc() Response
+	String() string
+	Name() string
 }
 
 type Argument struct {

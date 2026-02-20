@@ -2,6 +2,7 @@ package upnp
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -129,6 +130,42 @@ type RootDevice struct {
 	SpecVersion SpecVersion
 	URLBase     string // See 2.3: "Use of URLBase is deprecated from UPnP 1.1 onwards; UPnP 2.0 devices shall NOT include URLBase in their description documents."
 	Device      Device
+
+	SetStateFunc func(value string) error
+	GetStateFunc func() (string, error)
+}
+
+func (rootDevice RootDevice) ControlFunc(arguments ...device.Argument) device.Response {
+	if len(arguments) == 0 {
+		return device.Response{
+			ErrorCode:    101,
+			ErrorMessage: "Invalid arguments",
+		}
+	}
+
+	return device.Response{
+		ErrorCode: 0,
+		Value:     "OK",
+	}
+}
+
+func (rootDevice RootDevice) StateFunc() device.Response {
+	result, err := rootDevice.GetStateFunc()
+	if err != nil {
+		return device.Response{
+			ErrorCode:    100,
+			ErrorMessage: err.Error(),
+		}
+	}
+
+	return device.Response{
+		ErrorCode: 0,
+		Value:     result,
+	}
+}
+
+func (rootDevice RootDevice) Name() string {
+	return rootDevice.Device.FriendlyName
 }
 
 type SpecVersion struct {
@@ -163,20 +200,15 @@ type Icon struct {
 }
 
 type Service struct {
-	device.Device
 	ServiceType string
 	ServiceId   string
 	SCPDURL     string
 	EventSubURL string
 	ControlURL  string
 
-	Handler func([]device.Argument) device.Response
+	Handler func(...device.Argument) device.Response
 
 	SCPD Spcd
-}
-
-func (service Service) ControlFunc(arguments ...device.Argument) device.Response {
-	return service.Handler(arguments)
 }
 
 type Spcd struct {
@@ -206,6 +238,12 @@ func (spcd *Spcd) AddAction(action FormalAction) error {
 	spcd.actionList = append(spcd.actionList, action)
 
 	return nil
+}
+
+// Returns a copy of the formal actions
+func (spcd *Spcd) GetActions() []FormalAction {
+	result := slices.Clone(spcd.actionList)
+	return result
 }
 
 type FormalAction struct {
@@ -244,17 +282,13 @@ type StateVariable struct {
 	DataType          string
 	DefaultValue      string
 	AllowedValueRange *ValueRange
-	AllowedValueList  []Value
+	AllowedValueList  []string
 }
 
 type ValueRange struct {
-	Minimum int //TODO All should be comparable
+	Minimum int
 	Maximum int
 	Step    int
-}
-
-type Value struct {
-	AllowedValue int //TODO Should be comparable
 }
 
 type SerializableXML interface {
@@ -440,7 +474,7 @@ func (stateVariable StateVariable) StringXML() string {
 	if len(stateVariable.AllowedValueList) > 0 {
 		result.WriteString("<allowedValueList>\n")
 		for _, value := range stateVariable.AllowedValueList {
-			result.WriteString(value.StringXML())
+			result.WriteString(value)
 		}
 		result.WriteString("</allowedValueList>\n")
 	}
@@ -462,6 +496,91 @@ func (valueRange ValueRange) StringXML() string {
 	return result.String()
 }
 
-func (value Value) StringXML() string {
-	return "<allowedValue>" + strconv.Itoa(value.AllowedValue) + "</allowedValue>"
+func (rootDevice RootDevice) String() string {
+	var result strings.Builder
+
+	result.WriteString("RootDevice:\n")
+	result.WriteString("\t" + strings.ReplaceAll(rootDevice.SpecVersion.String(), "\n", "\n\t"))
+	result.WriteString("\n")
+
+	if len(StringUrlBase(rootDevice.URLBase)) > 0 {
+		result.WriteString("\t" + strings.ReplaceAll(StringUrlBase(rootDevice.URLBase), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	result.WriteString("\t" + strings.ReplaceAll(rootDevice.Device.String(), "\n", "\n\t"))
+
+	return result.String()
+}
+
+func (specVersion SpecVersion) String() string {
+	return "SpecVersion: " + specVersion.Major + "." + specVersion.Minor
+}
+
+func StringUrlBase(urlBase string) string {
+	result := ""
+
+	if len(urlBase) > 0 {
+		result = "URLBase: " + urlBase
+	}
+
+	return result
+}
+
+func (device Device) String() string {
+	var result strings.Builder
+
+	result.WriteString("Device:\n")
+	result.WriteString("\tDeviceType: " + device.DeviceType + "\n")
+	result.WriteString("\tUDN: " + device.UDN + "\n")
+	result.WriteString("\tFriendlyName: " + device.FriendlyName + "\n")
+	result.WriteString("\tManufacturer: " + device.Manufacturer + "\n")
+	result.WriteString("\tManufacturerURL: " + device.ManufacturerURL + "\n")
+	result.WriteString("\tModelName: " + device.ModelName + "\n")
+	result.WriteString("\tModelURL: " + device.ModelURL + "\n")
+	result.WriteString("\tModelDescription: " + device.ModelDescription + "\n")
+	result.WriteString("\tModelNumber: " + device.ModelNumber + "\n")
+	result.WriteString("\tSerialNumber: " + device.SerialNumber + "\n")
+	result.WriteString("\tUPC: " + device.UPC + "\n")
+	result.WriteString("\tPresentationURL: " + device.PresentationURL + "\n")
+
+	for _, icon := range device.IconList {
+		result.WriteString("\t" + strings.ReplaceAll(icon.String(), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	for _, service := range device.ServiceList {
+		result.WriteString("\t" + strings.ReplaceAll(service.String(), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	for _, embeddedDevice := range device.EmbeddedDevices {
+		result.WriteString("\t" + strings.ReplaceAll(embeddedDevice.String(), "\n", "\n\t"))
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+func (icon Icon) String() string {
+	var result strings.Builder
+
+	result.WriteString("Icon: " + icon.Mimetype)
+	result.WriteString(", (" + icon.Width + "x" + icon.Height + "x" + icon.Depth + ")")
+	result.WriteString(", " + icon.Url)
+
+	return result.String()
+}
+
+func (service Service) String() string {
+	var result strings.Builder
+
+	result.WriteString("Service:\n")
+	result.WriteString("\tServiceType: " + service.ServiceType + "\n")
+	result.WriteString("\tServiceId: " + service.ServiceId + "\n")
+	result.WriteString("\tSCPDURL: " + service.SCPDURL + "\n")
+	result.WriteString("\tEventSubURL: " + service.EventSubURL + "\n")
+	result.WriteString("\tControlURL: " + service.ControlURL + "\n")
+
+	return result.String()
 }
