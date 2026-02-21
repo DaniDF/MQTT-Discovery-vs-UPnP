@@ -135,35 +135,6 @@ type RootDevice struct {
 	GetStateFunc func() (string, error)
 }
 
-func (rootDevice RootDevice) ControlFunc(arguments ...device.Argument) device.Response {
-	if len(arguments) == 0 {
-		return device.Response{
-			ErrorCode:    101,
-			ErrorMessage: "Invalid arguments",
-		}
-	}
-
-	return device.Response{
-		ErrorCode: 0,
-		Value:     "OK",
-	}
-}
-
-func (rootDevice RootDevice) StateFunc() device.Response {
-	result, err := rootDevice.GetStateFunc()
-	if err != nil {
-		return device.Response{
-			ErrorCode:    100,
-			ErrorMessage: err.Error(),
-		}
-	}
-
-	return device.Response{
-		ErrorCode: 0,
-		Value:     result,
-	}
-}
-
 func (rootDevice RootDevice) Name() string {
 	return rootDevice.Device.FriendlyName
 }

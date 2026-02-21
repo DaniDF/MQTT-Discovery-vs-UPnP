@@ -19,8 +19,8 @@ import (
 
 const (
 	devicePresentationUrl = "/device.xml"
-	mqttBrokerHost        = "mqtt.df"
-	mqttDiscoveryTopic    = "test/#"
+	mqttBrokerHost        = "mqtt.df:1883"
+	mqttDiscoveryTopic    = "test4/#"
 	mqttPrefix            = "mqttdevice"
 )
 
@@ -72,7 +72,18 @@ func main() {
 			return
 		}
 
-		mqttController.PublishSwitchDevice(mqttDevice)
+		mqttController.PublishSwitchDevice(&mqttDevice)
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Second):
+					mqttDevice.AdvertiseStateFunc(mqttDevice.GetRequiredState())
+				}
+			}
+		}()
 	}
 
 	time.Sleep(2 * time.Minute)
@@ -95,17 +106,12 @@ func CreateMqttSwitchDevice(ctx context.Context) (mqtt.Device, error) {
 		return nil
 	}
 
-	getStateFunc := func() (string, error) {
-		return "1", nil
-	}
-
 	return mqtt.Device{
 		CommandTopic: commandTopic,
 		StateTopic:   stateTopic,
 		Id:           id,
 
 		SetStateFunc: setStateFunc,
-		GetStateFunc: getStateFunc,
 	}, nil
 }
 

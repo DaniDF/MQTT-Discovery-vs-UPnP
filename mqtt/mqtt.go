@@ -2,8 +2,6 @@ package mqtt
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"mobile.dani.df/logging"
@@ -140,35 +138,4 @@ func onConnectHandler(ctx context.Context) {
 func onConnectionErrorHandler(ctx context.Context, err error) {
 	log := ctx.Value("logger").(logging.Logger)
 	log.Error("[mqtt] Connection error: " + err.Error())
-}
-
-func ParseDiscoveryMessage(message MqttMessage) Device {
-	deviceType := strings.Split(message.Topic, "/")[1]
-
-	result := Device{
-		SwitchRootDevice: nil,
-		SensorRootDevice: nil,
-	}
-	switch deviceType {
-	case "switch":
-		result.SwitchRootDevice = parseSwitchDeviceMessage(message.Payload)
-	case "sensor":
-		result.SensorRootDevice = parseSensorDeviceMessage(message.Payload)
-	default:
-		result.SwitchRootDevice = parseSwitchDeviceMessage(message.Payload)
-	}
-
-	return result
-}
-
-func parseSwitchDeviceMessage(message string) *SwitchRootDevice {
-	result := SwitchRootDevice{}
-	json.Unmarshal([]byte(message), &result)
-	return &result
-}
-
-func parseSensorDeviceMessage(message string) *SensorRootDevice {
-	result := SensorRootDevice{}
-	json.Unmarshal([]byte(message), &result)
-	return &result
 }

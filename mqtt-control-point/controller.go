@@ -7,14 +7,13 @@ import (
 	"log/slog"
 	"time"
 
-	"mobile.dani.df/device-service"
 	"mobile.dani.df/logging"
 	"mobile.dani.df/mqtt"
 	"mobile.dani.df/utils"
 )
 
 const (
-	mqttSearchTimeoutSeconds = 2
+	mqttSearchTimeoutSeconds = 10
 	mqttQOS                  = 0
 	mqttRetained             = false
 )
@@ -50,10 +49,10 @@ func NewMqttController(mqttBrokerHost string, discoveryTopic string) (*MqttContr
 	}, nil
 }
 
-func (controller MqttController) Search() []device.Device {
+func (controller MqttController) Search() []mqtt.Device {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
-	result := []device.Device{}
+	result := []mqtt.Device{}
 
 	wait := make(chan bool)
 
@@ -94,7 +93,7 @@ func listenSubscriptionHandler(message mqtt.MqttMessage) {
 	subscriptionChannels[message.Topic] <- message.Payload
 }
 
-func (controller MqttController) PublishSwitchDevice(device mqtt.Device) error {
+func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
 	discoveryTopic := controller.DiscoveryTopic
@@ -116,6 +115,23 @@ func (controller MqttController) PublishSwitchDevice(device mqtt.Device) error {
 	if err != nil {
 		log.Error("[mqtt-config] Error while marshaling device: " + err.Error())
 		return err
+	}
+
+	subscriptionChannels[device.CommandTopic] = make(chan string)
+
+	handler := func(message mqtt.MqttMessage) {
+		subscriptionChannels[device.CommandTopic] <- message.Payload
+	}
+
+	controller.brokerConnection.Subscribe(controller.ctx, device.CommandTopic, byte(device.Qos), handler)
+
+	device.GetRequiredState = func() string {
+		return <-subscriptionChannels[device.CommandTopic]
+	}
+
+	device.AdvertiseStateFunc = func(value string) error {
+		controller.brokerConnection.SendMessage(device.StateTopic, byte(device.Qos), false, value)
+		return nil
 	}
 
 	controller.brokerConnection.SendMessage(discoveryTopic, byte(device.Qos), mqttRetained, string(message))

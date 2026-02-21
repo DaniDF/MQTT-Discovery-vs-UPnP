@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	device "mobile.dani.df/device-service"
 	"mobile.dani.df/utils"
 )
 
@@ -14,45 +13,13 @@ type Device struct {
 	Id           string `json:"-"` //TODO verify: "-" or simply - ?
 	Qos          int    `json:"qos"`
 
-	SwitchRootDevice *SwitchRootDevice
-	SensorRootDevice *SensorRootDevice
+	SwitchRootDevice *SwitchRootDevice `json:"-"`
+	SensorRootDevice *SensorRootDevice `json:"-"`
 
-	SetStateFunc func(value string) error
-	GetStateFunc func() (string, error)
-}
-
-func (dev Device) ControlFunc(arguments ...device.Argument) device.Response {
-	if len(arguments) == 0 {
-		return device.Response{
-			ErrorCode:    101,
-			ErrorMessage: "Invalid arguments",
-		}
-	}
-
-	err := dev.SetStateFunc(arguments[0].Value)
-	if err != nil {
-		return device.Response{
-			ErrorCode:    102,
-			ErrorMessage: err.Error(),
-		}
-	}
-
-	return dev.StateFunc()
-}
-
-func (dev Device) StateFunc() device.Response {
-	result, err := dev.GetStateFunc()
-	if err != nil {
-		return device.Response{
-			ErrorCode:    100,
-			ErrorMessage: err.Error(),
-		}
-	}
-
-	return device.Response{
-		ErrorCode: 0,
-		Value:     result,
-	}
+	SetStateFunc       func(value string) error `json:"-"`
+	GetStateFunc       func() (string, error)   `json:"-"`
+	AdvertiseStateFunc func(string) error       `json:"-"`
+	GetRequiredState   func() string            `json:"-"`
 }
 
 func (dev Device) Name() string {
@@ -61,9 +28,9 @@ func (dev Device) Name() string {
 
 type SwitchRootDevice struct {
 	Device
-	Availability    Availability `json:"availability"`
-	CommandTemplate string       `json:"command_template"`
-
+	Availability           Availability   `json:"availability"`
+	CommandTemplate        string         `json:"command_template"`
+	CommandTopic           string         `json:"command_topic"`
 	DefaultEntityId        string         `json:"default_entity_id"`
 	EmbeddedDevice         EmbeddedDevice `json:"device"`
 	EnabledByDefault       bool           `json:"enabled_by_default"`
@@ -84,9 +51,9 @@ type SwitchRootDevice struct {
 	Retain                 bool           `json:"retain"`
 	StateOff               string         `json:"state_off"`
 	StateOn                string         `json:"state_on"`
-
-	UniqueId      string `json:"unique_id"`
-	ValueTemplate string `json:"value_template"`
+	StateTopic             string         `json:"state_topic"`
+	UniqueId               string         `json:"unique_id"`
+	ValueTemplate          string         `json:"value_template"`
 }
 
 type SensorRootDevice struct{}
