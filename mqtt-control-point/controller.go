@@ -15,7 +15,6 @@ import (
 
 const (
 	mqttSearchTimeoutSeconds = 2
-	mqttDiscoverytopic       = "homeassistant/#"
 	mqttQOS                  = 0
 	mqttRetained             = false
 )
@@ -24,11 +23,12 @@ type MqttController struct {
 	mqttConfig       mqtt.MqttConfig
 	ctx              context.Context
 	brokerConnection mqtt.MqttConnection
+	DiscoveryTopic   string
 }
 
 var subscriptionChannels = make(map[string]chan string)
 
-func NewMqttController(mqttBrokerHost string) (*MqttController, error) {
+func NewMqttController(mqttBrokerHost string, discoveryTopic string) (*MqttController, error) {
 	ctx := context.Background()
 	ctx, log := logging.Init(ctx, slog.LevelDebug)
 
@@ -46,6 +46,7 @@ func NewMqttController(mqttBrokerHost string) (*MqttController, error) {
 		mqttConfig:       mqttConfig,
 		ctx:              ctx,
 		brokerConnection: conn,
+		DiscoveryTopic:   discoveryTopic,
 	}, nil
 }
 
@@ -60,19 +61,11 @@ func (controller MqttController) Search() []device.Device {
 		log.Debug("[mqtt-controller] {" + message.Topic + "}: <" + message.Payload + ">")
 		mqttDevice := mqtt.ParseDiscoveryMessage(message)
 
-		subscriptionChannels[mqttDevice.CommandTopic] = make(chan string, 128)
-
-		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.CommandTopic, mqttQOS, listenSubscriptionHandler)
-		if err != nil {
-			log.Error("[mqtt-controller] Error while subscribeing to control topic: " + mqttDevice.CommandTopic)
-			return
-		}
-
 		subscriptionChannels[mqttDevice.StateTopic] = make(chan string, 128)
 
-		err = controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, mqttQOS, listenSubscriptionHandler)
+		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, mqttQOS, listenSubscriptionHandler)
 		if err != nil {
-			log.Error("[mqtt-controller] Error while subscribeing to state topic: " + mqttDevice.StateTopic)
+			log.Error("[mqtt-controller] Error while subscribing to state topic: " + mqttDevice.StateTopic)
 			return
 		}
 
@@ -88,7 +81,7 @@ func (controller MqttController) Search() []device.Device {
 
 		result = append(result, mqttDevice)
 	}
-	controller.brokerConnection.Subscribe(controller.ctx, mqttDiscoverytopic, 0, handler)
+	controller.brokerConnection.Subscribe(controller.ctx, controller.DiscoveryTopic, 0, handler)
 
 	utils.AlertAfter(mqttSearchTimeoutSeconds*time.Second, wait)
 
@@ -101,10 +94,10 @@ func listenSubscriptionHandler(message mqtt.MqttMessage) {
 	subscriptionChannels[message.Topic] <- message.Payload
 }
 
-func (controller MqttController) PublishSwitchDevice(device mqtt.SwitchRootDevice) error {
+func (controller MqttController) PublishSwitchDevice(device mqtt.Device) error {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
-	discoveryTopic := mqttDiscoverytopic
+	discoveryTopic := controller.DiscoveryTopic
 	if discoveryTopic[len(discoveryTopic)-1] == '#' {
 		discoveryTopic = discoveryTopic[:len(discoveryTopic)-1]
 	}

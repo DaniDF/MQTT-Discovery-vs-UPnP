@@ -208,10 +208,10 @@ type Service struct {
 
 	Handler func(...device.Argument) device.Response
 
-	SCPD Spcd
+	SCPD Scpd
 }
 
-type Spcd struct {
+type Scpd struct {
 	SpecVersion       SpecVersion
 	actionList        []FormalAction
 	ServiceStateTable []*StateVariable
@@ -219,7 +219,7 @@ type Spcd struct {
 
 // Add the provided action to the SPCD.
 // Rises an "StateVariable not found" if at least one of the arguments has a RelatedStateVariable not present in ServiceStateTable.
-func (spcd *Spcd) AddAction(action FormalAction) error {
+func (spcd *Scpd) AddAction(action FormalAction) error {
 	flagFoundArgumentStateVariable := true
 	for _, argument := range action.ArgumentList {
 
@@ -241,7 +241,7 @@ func (spcd *Spcd) AddAction(action FormalAction) error {
 }
 
 // Returns a copy of the formal actions
-func (spcd *Spcd) GetActions() []FormalAction {
+func (spcd *Scpd) GetActions() []FormalAction {
 	result := slices.Clone(spcd.actionList)
 	return result
 }
@@ -394,23 +394,23 @@ func (service Service) StringXML() string {
 	return result.String()
 }
 
-func (spcd Spcd) StringXML() string {
+func (scpd Scpd) StringXML() string {
 	var result strings.Builder
 
 	result.WriteString("<?xml version=\"1.0\"?>\n")
 	result.WriteString("<scpd xmlns=\"urn:schemas-upnp-org:service-1-0\" configId=\"1\">\n")
 
-	result.WriteString(spcd.SpecVersion.StringXML())
+	result.WriteString(scpd.SpecVersion.StringXML())
 
 	result.WriteString("<actionList>\n")
 
-	for _, action := range spcd.actionList {
+	for _, action := range scpd.actionList {
 		result.WriteString(action.StringXML())
 	}
 	result.WriteString("</actionList>\n")
 
 	result.WriteString("<serviceStateTable>\n")
-	for _, stateVariable := range spcd.ServiceStateTable {
+	for _, stateVariable := range scpd.ServiceStateTable {
 		result.WriteString(stateVariable.StringXML())
 	}
 	result.WriteString("</serviceStateTable>\n")

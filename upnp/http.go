@@ -12,10 +12,6 @@ import (
 	"mobile.dani.df/utils"
 )
 
-const (
-	httpServerPort = 8080
-)
-
 type UDPPacket struct {
 	source   net.UDPAddr
 	receiver net.UDPAddr
@@ -56,38 +52,72 @@ func SendRequest(request *http.Request) (*http.Response, error) {
 
 var httpServerAddress = utils.GetLocalIP()
 
-func HttpServer(ctx context.Context, rootDevice RootDevice, devicePresentationUrl string) {
-	go func() {
-		log := ctx.Value("logger").(logging.Logger)
+type HttpServer struct {
+	ctx      context.Context
+	listener net.Listener
+	Port     int
+}
 
-		http.HandleFunc(devicePresentationUrl, func(resp http.ResponseWriter, req *http.Request) {
-			deviceDescriptionHandler(ctx, rootDevice, req, resp)
+func NewHttpServer(ctx context.Context) (HttpServer, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Error("[http] Error while starting listening: " + err.Error())
+		return HttpServer{}, nil
+	}
+
+	return HttpServer{
+		ctx:      ctx,
+		listener: listener,
+		Port:     listener.Addr().(*net.TCPAddr).Port,
+	}, nil
+}
+
+func (httpServer HttpServer) ServeRootDevice(rootDevice RootDevice, devicePresentationUrl string) {
+	go func() {
+		log := httpServer.ctx.Value("logger").(logging.Logger)
+
+		httpMux := http.NewServeMux()
+
+		httpMux.HandleFunc(devicePresentationUrl, func(resp http.ResponseWriter, req *http.Request) {
+			deviceDescriptionHandler(httpServer.ctx, rootDevice, httpServer.Port, req, resp)
 		})
 		for _, embeddedDevice := range rootDevice.Device.EmbeddedDevices {
-			http.HandleFunc(embeddedDevice.PresentationURL, func(resp http.ResponseWriter, req *http.Request) {
-				deviceDescriptionHandler(ctx, rootDevice, req, resp)
+			httpMux.HandleFunc(embeddedDevice.PresentationURL, func(resp http.ResponseWriter, req *http.Request) {
+				deviceDescriptionHandler(httpServer.ctx, rootDevice, httpServer.Port, req, resp)
 			})
 		}
 
 		for _, service := range rootDevice.Device.ServiceList {
-			http.HandleFunc(service.SCPDURL, func(resp http.ResponseWriter, req *http.Request) { scpdURLHandler(ctx, rootDevice, req, resp) })
-			http.HandleFunc(service.ControlURL, func(resp http.ResponseWriter, req *http.Request) { serviceControlHandler(ctx, rootDevice, req, resp) })
-			http.HandleFunc(service.EventSubURL, func(resp http.ResponseWriter, req *http.Request) { serviceEventHandler(ctx, rootDevice, req, resp) })
+			httpMux.HandleFunc(service.SCPDURL, func(resp http.ResponseWriter, req *http.Request) {
+				scpdURLHandler(httpServer.ctx, rootDevice, req, resp)
+			})
+			httpMux.HandleFunc(service.ControlURL, func(resp http.ResponseWriter, req *http.Request) {
+				serviceControlHandler(httpServer.ctx, rootDevice, req, resp)
+			})
+			httpMux.HandleFunc(service.EventSubURL, func(resp http.ResponseWriter, req *http.Request) {
+				serviceEventHandler(httpServer.ctx, rootDevice, req, resp)
+			})
 		}
 		for _, embeddedDevice := range rootDevice.Device.EmbeddedDevices {
 			for _, service := range embeddedDevice.ServiceList {
-				http.HandleFunc(service.SCPDURL, func(resp http.ResponseWriter, req *http.Request) { scpdURLHandler(ctx, rootDevice, req, resp) })
-				http.HandleFunc(service.ControlURL, func(resp http.ResponseWriter, req *http.Request) { serviceControlHandler(ctx, rootDevice, req, resp) })
+				httpMux.HandleFunc(service.SCPDURL, func(resp http.ResponseWriter, req *http.Request) {
+					scpdURLHandler(httpServer.ctx, rootDevice, req, resp)
+				})
+				httpMux.HandleFunc(service.ControlURL, func(resp http.ResponseWriter, req *http.Request) {
+					serviceControlHandler(httpServer.ctx, rootDevice, req, resp)
+				})
 			}
 		}
 
-		log.Info("[http] Listening for request")
-		err := http.ListenAndServe(httpServerAddress+":"+strconv.Itoa(httpServerPort), nil)
+		log.Info("[http] Listening for request at " + httpServer.listener.Addr().String())
+		err := http.Serve(httpServer.listener, httpMux)
 		log.Error("[http] Error occurred while listen and serve: " + err.Error())
 	}()
 }
 
-func deviceDescriptionHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
+func deviceDescriptionHandler(ctx context.Context, rootDevice RootDevice, httpServerPort int, request *http.Request, response http.ResponseWriter) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	foundDeviceHandler := func(device SerializableXML) {

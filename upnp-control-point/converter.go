@@ -93,14 +93,14 @@ func ConvertService(goupnpService goupnp.Service) upnp.Service {
 	}
 }
 
-func ConvertSCPD(s *scpd.SCPD) upnp.Spcd {
+func ConvertSCPD(s *scpd.SCPD) upnp.Scpd {
 	serviceStateTable := []*upnp.StateVariable{}
 
 	for _, stateVariable := range s.StateVariables {
 		serviceStateTable = append(serviceStateTable, ConvertSCPDStateVariable(stateVariable))
 	}
 
-	result := upnp.Spcd{
+	result := upnp.Scpd{
 		SpecVersion:       ConvertSCPDSpecVersion(s.SpecVersion),
 		ServiceStateTable: serviceStateTable,
 	}

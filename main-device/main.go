@@ -2,43 +2,119 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strconv"
+	"time"
+
+	"github.com/alexflint/go-arg"
 
 	"mobile.dani.df/device-service"
 	"mobile.dani.df/logging"
+	"mobile.dani.df/mqtt"
+	ctrlmqtt "mobile.dani.df/mqtt-control-point"
 	upnp "mobile.dani.df/upnp"
 	"mobile.dani.df/utils"
 )
 
 const (
-	upnpPort              = 8080
 	devicePresentationUrl = "/device.xml"
+	mqttBrokerHost        = "mqtt.df"
+	mqttDiscoveryTopic    = "test/#"
+	mqttPrefix            = "mqttdevice"
 )
 
+type Args struct {
+	NumUpnpDevices int `arg:"-u,--upnp-devs" default:"1" help:"Number of UPnP devices to deploy"`
+	NumMqttDevices int `arg:"-m,--mqtt-devs" default:"1" help:"Number of MQTT devices to deploy"`
+
+	DebugEnabled bool `arg:"-d,--debug" default:"false" help:"Enable debug logging"`
+}
+
 func main() {
+	var args Args
+	arg.MustParse(&args)
+
+	debugLevel := slog.LevelInfo
+	if args.DebugEnabled {
+		debugLevel = slog.LevelDebug
+	}
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
-	ctx, _ = logging.Init(ctx, slog.LevelDebug)
+	ctx, log := logging.Init(ctx, debugLevel)
 
-	rootDevice, err := CreateUpnpRootDevice(ctx)
+	for range args.NumUpnpDevices {
+		httpServer, err := upnp.NewHttpServer(ctx)
+		if err != nil {
+			return
+		}
+
+		rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
+		if err != nil {
+			return
+		}
+
+		upnp.GenaSubscriptionDaemon(ctx)
+		httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
+		upnp.SsdpDevice(ctx, rootDevice)
+	}
+
+	mqttController, err := ctrlmqtt.NewMqttController(mqttBrokerHost, mqttDiscoveryTopic)
 	if err != nil {
+		log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
 		return
 	}
 
-	upnp.GenaSubscriptionDaemon(ctx)
-	upnp.HttpServer(ctx, rootDevice, devicePresentationUrl)
-	upnp.SsdpDevice(ctx, rootDevice)
+	for range args.NumMqttDevices {
+		mqttDevice, err := CreateMqttSwitchDevice(ctx)
+		if err != nil {
+			return
+		}
 
+		mqttController.PublishSwitchDevice(mqttDevice)
+	}
+
+	time.Sleep(2 * time.Minute)
 	cancel() //TODO Find a solution it is unused
 }
 
-func CreateUpnpRootDevice(ctx context.Context) (upnp.RootDevice, error) {
+func CreateMqttSwitchDevice(ctx context.Context) (mqtt.Device, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	id, err := mqtt.GenerateID()
+	if err != nil {
+		log.Error("[main-device] Error generating mqtt device id: " + err.Error())
+		return mqtt.Device{}, err
+	}
+
+	commandTopic := fmt.Sprintf("%s/%s/command", mqttPrefix, id)
+	stateTopic := fmt.Sprintf("%s/%s/state", mqttPrefix, id)
+
+	setStateFunc := func(value string) error {
+		return nil
+	}
+
+	getStateFunc := func() (string, error) {
+		return "1", nil
+	}
+
+	return mqtt.Device{
+		CommandTopic: commandTopic,
+		StateTopic:   stateTopic,
+		Id:           id,
+
+		SetStateFunc: setStateFunc,
+		GetStateFunc: getStateFunc,
+	}, nil
+}
+
+func CreateUpnpRootDevice(ctx context.Context, upnpPort int) (upnp.RootDevice, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	uuid, err := upnp.GenerateRandomUUID()
 	if err != nil {
-		log.Error("Error while generating the UUID for the device")
+		log.Error("[main-device] Error while generating the UUID for the device")
 		return upnp.RootDevice{}, err
 	}
 
@@ -116,7 +192,7 @@ func CreateUpnpRootDevice(ctx context.Context) (upnp.RootDevice, error) {
 		AllowedValueList:  nil,
 	}
 
-	var spcd = upnp.Spcd{
+	var scpd = upnp.Scpd{
 		SpecVersion: upnp.SpecVersion{
 			Major: "1",
 			Minor: "1",
@@ -124,7 +200,7 @@ func CreateUpnpRootDevice(ctx context.Context) (upnp.RootDevice, error) {
 		ServiceStateTable: []*upnp.StateVariable{&stateValueVariable, &actualValueVariable},
 	}
 
-	err = spcd.AddAction(upnp.FormalAction{
+	err = scpd.AddAction(upnp.FormalAction{
 		Name: "Turn",
 		ArgumentList: []upnp.FormalArgument{
 			{
@@ -140,9 +216,10 @@ func CreateUpnpRootDevice(ctx context.Context) (upnp.RootDevice, error) {
 		},
 	})
 	if err != nil {
-		log.Error("Error adding action " + err.Error())
+		log.Error("[main-device] Error adding action " + err.Error())
+		return upnp.RootDevice{}, err
 	}
-	err = spcd.AddAction(upnp.FormalAction{
+	err = scpd.AddAction(upnp.FormalAction{
 		Name: "Read",
 		ArgumentList: []upnp.FormalArgument{
 			{
@@ -153,11 +230,12 @@ func CreateUpnpRootDevice(ctx context.Context) (upnp.RootDevice, error) {
 		},
 	})
 	if err != nil {
-		log.Error("Error adding action " + err.Error())
+		log.Error("[main-device] Error adding action " + err.Error())
+		return upnp.RootDevice{}, err
 	}
 
-	result.Device.ServiceList[0].SCPD = spcd
-	result.Device.ServiceList[0].Handler = func(arguments ...device.Argument) device.Response { //TODO I should have a reference on which action is invoked
+	result.Device.ServiceList[0].SCPD = scpd
+	result.Device.ServiceList[0].Handler = func(arguments ...device.Argument) device.Response {
 		log.Debug("[service] Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + arguments[0].Value)
 
 		switch arguments[0].Value {

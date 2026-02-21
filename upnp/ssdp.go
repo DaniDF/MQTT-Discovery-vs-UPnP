@@ -205,62 +205,68 @@ func SsdpDevice(ctx context.Context, rootDevice RootDevice) error {
 		log.Error("[ssdp] Error while listen multicast UDP")
 		return errors.New("Error while listen")
 	}
-	defer conn.Close()
 
-	log.Info("[ssdp] Listening for request")
-	messageBuffer := make([]byte, 1024)
-	for {
-		n, source, err := conn.ReadFromUDP(messageBuffer)
+	go func() {
 
-		go func(message string, src net.UDPAddr, err error) {
-			if err != nil {
-				log.Error("[ssdp] Error while receiving a message")
-				return
-			}
+		defer conn.Close()
 
-			packet := UDPPacket{
-				source:  *source,
-				message: message,
-			}
-			log.Debug("[ssdp] Received message from " + packet.source.String())
+		log.Info("[ssdp] Listening for request")
+		messageBuffer := make([]byte, 1024)
+		for {
+			n, source, err := conn.ReadFromUDP(messageBuffer)
 
-			_, isMSearch := FindHeader(packet.message, "M-SEARCH")
-
-			if isMSearch {
-				log.Info("[ssdp] Received M-SEARCH from " + packet.source.String())
-				// MX wait seconds to send the response to prevent DOS (see 1.3.2)
-				wait := make(chan bool, 1)
-				mx, findMx := FindHeader(packet.message, "MX")
-
-				if findMx {
-					mxValue, err := strconv.Atoi(mx)
-					if err == nil {
-						sleepTime := int((rand.Float32() * float32(mxValue)) * 1000)
-						utils.AlertAfter(time.Duration(sleepTime)*time.Millisecond, wait)
-					}
-				} else {
-					wait <- true
+			go func(message string, src net.UDPAddr, err error) {
+				if err != nil {
+					log.Error("[ssdp] Error while receiving a message")
+					return
 				}
 
-				responses, err := handleSSDPMSEARCHRequest(packet, rootDevice)
-
-				if err != nil && err.Error() == "Request not valid: ST not present" {
-					log.Warn("[ssdp] Received a M-SEARCH without ST header")
-				} else if err != nil && err.Error() == "Request not for this device" {
-					log.Debug("[ssdp] Request not for this device")
-				} else {
-					<-wait // Fun fun fact: my tvs never wait and reply immediately
-					for _, response := range responses {
-						log.Debug("[ssdp] Responding to " + response.receiver.String() + " with " + response.message)
-						conn.WriteToUDP([]byte(response.message), &response.receiver)
-					}
+				packet := UDPPacket{
+					source:  *source,
+					message: message,
 				}
-			} else {
-				log.Debug("[ssdp] NOT M-SEARCH Received message from " + packet.source.String())
-			}
+				log.Debug("[ssdp] Received message from " + packet.source.String())
 
-		}(string(messageBuffer[:n]), *source, err)
-	}
+				_, isMSearch := FindHeader(packet.message, "M-SEARCH")
+
+				if isMSearch {
+					log.Info("[ssdp] Received M-SEARCH from " + packet.source.String())
+					// MX wait seconds to send the response to prevent DOS (see 1.3.2)
+					wait := make(chan bool, 1)
+					mx, findMx := FindHeader(packet.message, "MX")
+
+					if findMx {
+						mxValue, err := strconv.Atoi(mx)
+						if err == nil {
+							sleepTime := int((rand.Float32() * float32(mxValue)) * 1000)
+							utils.AlertAfter(time.Duration(sleepTime)*time.Millisecond, wait)
+						}
+					} else {
+						wait <- true
+					}
+
+					responses, err := handleSSDPMSEARCHRequest(packet, rootDevice)
+
+					if err != nil && err.Error() == "Request not valid: ST not present" {
+						log.Warn("[ssdp] Received a M-SEARCH without ST header")
+					} else if err != nil && err.Error() == "Request not for this device" {
+						log.Debug("[ssdp] Request not for this device")
+					} else {
+						<-wait // Fun fun fact: my tvs never wait and reply immediately
+						for _, response := range responses {
+							log.Debug("[ssdp] Responding to " + response.receiver.String() + " with " + response.message)
+							conn.WriteToUDP([]byte(response.message), &response.receiver)
+						}
+					}
+				} else {
+					log.Debug("[ssdp] NOT M-SEARCH Received message from " + packet.source.String())
+				}
+
+			}(string(messageBuffer[:n]), *source, err)
+		}
+	}()
+
+	return nil
 }
 
 // Handles a single SSDP request
