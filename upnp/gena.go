@@ -120,8 +120,8 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	log := ctx.Value("logger").(logging.Logger)
 
 	listenCtx, cancel := context.WithCancel(ctx)
-	_, err := listenAtMulticast(listenCtx, genaMulticastNotificationAddress, genaMulticastNotificationPort, func(ctx context.Context, p UDPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
-	addr, err := listenAt(listenCtx, 0, func(ctx context.Context, p UDPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
+	//_, err := listenAtMulticast(listenCtx, genaMulticastNotificationAddress, genaMulticastNotificationPort, func(ctx context.Context, p UDPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
+	addr, err := listenAt(listenCtx, 0, func(ctx context.Context, p TCPPacket) { genaSubscriptionEventHandler(ctx, p, handler) })
 	if err != nil {
 		log.Error("[gena] An error occurred while listening for events: " + err.Error())
 		cancel()
@@ -223,7 +223,7 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	return &cancel, nil
 }
 
-func genaSubscriptionEventHandler(ctx context.Context, packet UDPPacket, handler func(string)) {
+func genaSubscriptionEventHandler(ctx context.Context, packet TCPPacket, handler func(string)) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	log.Debug("[gena] Received from " + packet.source.String() + " subscription message: " + packet.message)
@@ -234,21 +234,22 @@ func genaSubscriptionEventHandler(ctx context.Context, packet UDPPacket, handler
 
 // Listen to a specified port for UDP connection. When a client connects the handler function is invoked.
 // If port = 0 is selected a random port number.
-func listenAt(ctx context.Context, port int, handler func(context.Context, UDPPacket)) (*net.UDPAddr, error) {
+func listenAt(ctx context.Context, port int, handler func(context.Context, TCPPacket)) (*net.TCPAddr, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: port})
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4zero, Port: port})
 	if err != nil {
-		log.Error("[gena] Error while listening UDP packet")
+		log.Error("[gena] Error while listening TCP packet")
 		return nil, err
 	}
 
-	listenAtDaemon(ctx, conn, handler)
+	listenAtDaemon(ctx, listener, handler)
 
-	return conn.LocalAddr().(*net.UDPAddr), nil
+	return listener.Addr().(*net.TCPAddr), nil
 }
 
-func listenAtMulticast(ctx context.Context, multicastAddress string, port int, handler func(context.Context, UDPPacket)) (*net.UDPAddr, error) {
+//TODO It has to listen for udp
+/*func listenAtMulticast(ctx context.Context, multicastAddress string, port int, handler func(context.Context, UDPPacket)) (*net.UDPAddr, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	addr, err := net.ResolveUDPAddr("udp4", multicastAddress+":"+strconv.Itoa(port))
@@ -267,29 +268,44 @@ func listenAtMulticast(ctx context.Context, multicastAddress string, port int, h
 
 	return addr, nil
 }
+*/
 
-func listenAtDaemon(ctx context.Context, conn *net.UDPConn, handler func(context.Context, UDPPacket)) {
+func listenAtDaemon(ctx context.Context, listener *net.TCPListener, handler func(context.Context, TCPPacket)) {
 	go func() {
 		log := ctx.Value("logger").(logging.Logger)
 
-		defer conn.Close()
+		defer listener.Close()
 
-		messageBuffer := make([]byte, 1024)
 		for {
-			n, source, err := conn.ReadFromUDP(messageBuffer)
+			conn, err := listener.Accept() //conn.ReadFromUDP(messageBuffer)
 			if err != nil {
-				log.Error("[gena] Error while receiving UDP packet")
-				return
+				log.Error("[gena] Error while receiving TCP packet")
 			}
 
 			go func() {
-				handler(ctx, UDPPacket{
-					source:  *source,
-					message: string(messageBuffer[:n]),
-				})
+				defer conn.Close()
+
+				messageBuffer := make([]byte, 1024)
+				n, err := conn.Read(messageBuffer)
+				if err != nil {
+					log.Error("[gena] Error while reading from connection: " + err.Error())
+					return
+				}
+
+				go func() {
+					handler(ctx, TCPPacket{
+						source:  *conn.RemoteAddr().(*net.TCPAddr),
+						message: string(messageBuffer[:n]),
+					})
+				}()
+
+				_, err = conn.Write([]byte("HTTP/1.1 200 OK\r\n"))
+				if err != nil {
+					log.Error("[gena] Error while writing the notification response: " + err.Error())
+					return
+				}
 			}()
 
-			conn.WriteToUDP([]byte("HTTP/1.1 200 OK\r\n"), source)
 		}
 	}()
 }
@@ -342,7 +358,12 @@ func parseSubscriptionRequest(ctx context.Context, request *http.Request) (subsc
 		callback:  nil,
 		nt:        request.Header.Get("NT"),
 		timeout:   -1,
-		statevar:  strings.Split(request.Header.Get("STATEVAR"), ","),
+	}
+
+	if len(request.Header.Get("STATEVAR")) > 0 {
+		result.statevar = strings.Split(request.Header.Get("STATEVAR"), ",")
+	} else {
+		result.statevar = []string{}
 	}
 
 	callback := request.Header.Get("CALLBACK")
@@ -464,7 +485,7 @@ func GenaSubscriptionDaemon(ctx context.Context) {
 
 					subscribersOriginal := serviceSubscriptionDB[notification.service.ServiceId]
 					subscribers := make([]subscription, len(subscribersOriginal))
-					copy(subscribers, subscribersOriginal)
+					subscribers = slices.Clone(subscribersOriginal)
 
 					dbLock <- true
 
@@ -477,7 +498,7 @@ func GenaSubscriptionDaemon(ctx context.Context) {
 	}()
 }
 
-func NotifySubscribers(service Service, arguments []device.Argument) {
+func GenaNotifySubscribers(service Service, arguments []device.Argument) {
 	stateVariableValues := []stateVariableValue{}
 
 	for _, argument := range arguments {
@@ -500,39 +521,39 @@ func NotifySubscribers(service Service, arguments []device.Argument) {
 func sendNotificationToSubscribers(ctx context.Context, notification notification, subscriptions []subscription) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	sendNotification := func(packet UDPPacket) {
-		addr, err := net.ResolveUDPAddr("udp", packet.receiver.IP.String()+":"+strconv.Itoa(packet.receiver.Port))
+	sendNotification := func(packet TCPPacket) {
+		addr, err := net.ResolveTCPAddr("tcp", packet.receiver.IP.String()+":"+strconv.Itoa(packet.receiver.Port))
 		if err != nil {
 			log.Error("[gena] Error while resolving address: " + err.Error())
 			return
 		}
 
-		conn, err := net.DialUDP("udp", nil, addr)
+		conn, err := net.DialTCP("tcp", nil, addr)
 		if err != nil {
-			log.Error("[gena] Error while dial UDP addres")
+			log.Error("[gena] Error while dial TCP addres")
 			return
 		}
 		defer conn.Close()
 
 		_, err = conn.Write([]byte(packet.message))
 		if err != nil {
-			log.Error("[gena] Error while sending UDP packet")
+			log.Error("[gena] Error while sending TCP packet")
 			return
 		}
 
 		messageBuffer := make([]byte, 1024)
-		n, source, err := conn.ReadFromUDP(messageBuffer)
+		n, err := conn.Read(messageBuffer)
 		if err != nil {
 			log.Error("[gena] Error while receiving UDP packet")
 			return
 		}
 
-		log.Info("[gena] Subscription: received from: " + source.IP.String() + ":" + strconv.Itoa(source.Port) + " message: " + string(messageBuffer[:n]))
+		log.Info("[gena] Subscription delivery received response: " + string(messageBuffer[:n]))
 	}
 
 	for _, subscription := range subscriptions {
 		sid := fmt.Sprintf("%d", subscription.sid)
-		usn := ""
+		//usn := ""
 
 		variableValueMap := map[string]string{}
 		variableValueMapMulticast := map[string]string{}
@@ -549,11 +570,11 @@ func sendNotificationToSubscribers(ctx context.Context, notification notificatio
 		}
 
 		go sendNotification(generateNotifyMessage(subscription.callback, sid, subscription.subscriber.eventKey, variableValueMap))
-		go sendNotification(generateNotifyMulticastMessage(subscription.callback, usn, subscription.service.ServiceId, subscription.subscriber.eventKey, Info, variableValueMap))
+		//go sendNotification(generateNotifyMulticastMessage(subscription.callback, usn, subscription.service.ServiceId, subscription.subscriber.eventKey, Info, variableValueMap))
 	}
 }
 
-func generateNotifyMessage(host *url.URL, sid string, sequenceNumber int, variableValueMap map[string]string) UDPPacket {
+func generateNotifyMessage(host *url.URL, sid string, sequenceNumber int, variableValueMap map[string]string) TCPPacket {
 	var result strings.Builder
 
 	// See 4.3.2
@@ -578,8 +599,8 @@ func generateNotifyMessage(host *url.URL, sid string, sequenceNumber int, variab
 	result.WriteString("</e:property>\r\n")
 	result.WriteString("</e:propertyset>\r\n")
 
-	receiver, _ := net.ResolveUDPAddr("udp", host.Host)
-	return UDPPacket{
+	receiver, _ := net.ResolveTCPAddr("tcp", host.Host)
+	return TCPPacket{
 		message:  result.String(),
 		receiver: *receiver,
 	}

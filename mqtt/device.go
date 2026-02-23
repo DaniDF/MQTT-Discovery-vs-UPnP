@@ -10,7 +10,7 @@ import (
 type Device struct {
 	CommandTopic string `json:"command_topic"`
 	StateTopic   string `json:"state_topic"`
-	Id           string `json:"-"` //TODO verify: "-" or simply - ?
+	Id           string `json:"-"`
 	Qos          int    `json:"qos"`
 
 	SwitchRootDevice *SwitchRootDevice `json:"-"`

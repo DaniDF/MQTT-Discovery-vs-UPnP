@@ -18,6 +18,12 @@ type UDPPacket struct {
 	message  string
 }
 
+type TCPPacket struct {
+	source   net.TCPAddr
+	receiver net.TCPAddr
+	message  string
+}
+
 func (m UDPPacket) String() string {
 	return m.source.String() + " says " + m.message
 }

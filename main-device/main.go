@@ -46,50 +46,55 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, log := logging.Init(ctx, debugLevel)
 
-	mqttController, err := ctrlmqtt.NewMqttController(ctx, mqttBrokerHost, mqttDiscoveryTopic, mqttAliveTopic, mqttQos)
-	if err != nil {
-		log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
-		return
-	}
-
-	for range args.NumMqttDevices {
-		mqttDevice, err := CreateMqttSwitchDevice(ctx)
+	if args.NumMqttDevices > 0 {
+		mqttController, err := ctrlmqtt.NewMqttController(ctx, mqttBrokerHost, mqttDiscoveryTopic, mqttAliveTopic, mqttQos)
 		if err != nil {
+			log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
 			return
 		}
 
-		mqttController.PublishSwitchDevice(&mqttDevice)
-
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(time.Second):
-					mqttDevice.AdvertiseStateFunc(mqttDevice.GetRequiredState())
-				}
+		for range args.NumMqttDevices {
+			mqttDevice, err := CreateMqttSwitchDevice(ctx)
+			if err != nil {
+				return
 			}
-		}()
+
+			mqttController.PublishSwitchDevice(&mqttDevice)
+
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(time.Second):
+						mqttDevice.AdvertiseStateFunc(mqttDevice.GetRequiredState())
+					}
+				}
+			}()
+		}
 	}
 
-	for range args.NumUpnpDevices {
-		httpServer, err := upnp.NewHttpServer(ctx)
-		if err != nil {
-			return
-		}
-
-		rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
-		if err != nil {
-			return
-		}
-
+	if args.NumUpnpDevices > 0 {
 		upnp.GenaSubscriptionDaemon(ctx)
-		httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
-		upnp.SsdpDevice(ctx, rootDevice)
-	}
 
-	time.Sleep(2 * time.Minute)
-	cancel() //TODO Find a solution it is unused
+		for range args.NumUpnpDevices {
+			httpServer, err := upnp.NewHttpServer(ctx)
+			if err != nil {
+				return
+			}
+
+			rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
+			if err != nil {
+				return
+			}
+
+			httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
+			upnp.SsdpDevice(ctx, rootDevice)
+		}
+
+		time.Sleep(2 * time.Minute)
+		cancel() //TODO Find a solution it is unused
+	}
 }
 
 func CreateMqttSwitchDevice(ctx context.Context) (mqtt.Device, error) {
@@ -248,7 +253,12 @@ func CreateUpnpRootDevice(ctx context.Context, upnpPort int) (upnp.RootDevice, e
 
 		switch arguments[0].Value {
 		case "0", "1":
-			upnp.NotifySubscribers(result.Device.ServiceList[0], []device.Argument{arguments[0]})
+			upnp.GenaNotifySubscribers(result.Device.ServiceList[0], []device.Argument{
+				{
+					Name:  "actualState",
+					Value: arguments[0].Value,
+				},
+			})
 			return device.Response{
 				Value: arguments[0].Value,
 			}
