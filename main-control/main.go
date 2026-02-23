@@ -17,6 +17,8 @@ import (
 const (
 	mqttBrokerHost     = "mqtt.df:1883"
 	mqttDiscoveryTopic = "test4/#"
+	mqttAliveTopic     = "test/alive"
+	mqttQos            = 0
 )
 
 type Args struct {
@@ -39,7 +41,7 @@ func main() {
 	ctx, log := logging.Init(ctx, debugLevel)
 
 	if args.EnableMqttTest {
-		mqttController, err := mqtt.NewMqttController(mqttBrokerHost, mqttDiscoveryTopic)
+		mqttController, err := mqtt.NewMqttController(ctx, mqttBrokerHost, mqttDiscoveryTopic, mqttAliveTopic, mqttQos)
 		if err != nil {
 			log.Error("[main-control] Error while connecting to mqtt broker: " + err.Error())
 		}

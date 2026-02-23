@@ -21,7 +21,9 @@ const (
 	devicePresentationUrl = "/device.xml"
 	mqttBrokerHost        = "mqtt.df:1883"
 	mqttDiscoveryTopic    = "test4/#"
+	mqttAliveTopic        = "test/alive"
 	mqttPrefix            = "mqttdevice"
+	mqttQos               = 0
 )
 
 type Args struct {
@@ -44,23 +46,7 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, log := logging.Init(ctx, debugLevel)
 
-	for range args.NumUpnpDevices {
-		httpServer, err := upnp.NewHttpServer(ctx)
-		if err != nil {
-			return
-		}
-
-		rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
-		if err != nil {
-			return
-		}
-
-		upnp.GenaSubscriptionDaemon(ctx)
-		httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
-		upnp.SsdpDevice(ctx, rootDevice)
-	}
-
-	mqttController, err := ctrlmqtt.NewMqttController(mqttBrokerHost, mqttDiscoveryTopic)
+	mqttController, err := ctrlmqtt.NewMqttController(ctx, mqttBrokerHost, mqttDiscoveryTopic, mqttAliveTopic, mqttQos)
 	if err != nil {
 		log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
 		return
@@ -84,6 +70,22 @@ func main() {
 				}
 			}
 		}()
+	}
+
+	for range args.NumUpnpDevices {
+		httpServer, err := upnp.NewHttpServer(ctx)
+		if err != nil {
+			return
+		}
+
+		rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
+		if err != nil {
+			return
+		}
+
+		upnp.GenaSubscriptionDaemon(ctx)
+		httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
+		upnp.SsdpDevice(ctx, rootDevice)
 	}
 
 	time.Sleep(2 * time.Minute)

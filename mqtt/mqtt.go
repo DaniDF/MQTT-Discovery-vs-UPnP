@@ -28,6 +28,7 @@ func CreateConnection(ctx context.Context, config MqttConfig) (MqttConnection, e
 	log := ctx.Value("logger").(logging.Logger)
 
 	mqttOpts := mqtt.NewClientOptions()
+	mqttOpts.SetOrderMatters(false)
 	mqttOpts.AddBroker(config.MqttBroker)
 	mqttOpts.OnConnect = func(client mqtt.Client) {
 		onConnectHandler(ctx)
@@ -62,13 +63,8 @@ func TerminateConnection(conn MqttConnection) {
 	conn.client.Disconnect(50)
 }
 
-func (conn MqttConnection) SendMessage(topic string, qos byte, retained bool, payload string) {
-	conn.publish <- MqttMessage{
-		Topic:    topic,
-		Qos:      qos,
-		Retained: retained,
-		Payload:  payload,
-	}
+func (conn MqttConnection) SendMessage(message MqttMessage) {
+	conn.publish <- message
 }
 func (conn MqttConnection) Subscribe(ctx context.Context, topic string, qos byte, handler func(MqttMessage)) error {
 	log := ctx.Value("logger").(logging.Logger)

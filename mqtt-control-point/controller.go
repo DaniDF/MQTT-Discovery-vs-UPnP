@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"mobile.dani.df/logging"
@@ -14,8 +13,8 @@ import (
 
 const (
 	mqttSearchTimeoutSeconds = 10
-	mqttQOS                  = 0
-	mqttRetained             = false
+	//mqttQOS                  = 0
+	mqttRetained = false
 )
 
 type MqttController struct {
@@ -23,13 +22,14 @@ type MqttController struct {
 	ctx              context.Context
 	brokerConnection mqtt.MqttConnection
 	DiscoveryTopic   string
+	AliveTopic       string
+	Qos              byte
 }
 
 var subscriptionChannels = make(map[string]chan string)
 
-func NewMqttController(mqttBrokerHost string, discoveryTopic string) (*MqttController, error) {
-	ctx := context.Background()
-	ctx, log := logging.Init(ctx, slog.LevelDebug)
+func NewMqttController(ctx context.Context, mqttBrokerHost string, discoveryTopic string, aliveTopic string, qos int) (*MqttController, error) {
+	log := ctx.Value("logger").(logging.Logger)
 
 	mqttConfig := mqtt.MqttConfig{
 		MqttBroker: mqttBrokerHost,
@@ -41,12 +41,17 @@ func NewMqttController(mqttBrokerHost string, discoveryTopic string) (*MqttContr
 		return nil, err
 	}
 
-	return &MqttController{
+	result := MqttController{
 		mqttConfig:       mqttConfig,
 		ctx:              ctx,
 		brokerConnection: conn,
 		DiscoveryTopic:   discoveryTopic,
-	}, nil
+		AliveTopic:       aliveTopic,
+		Qos:              byte(qos),
+	}
+	result.discoveryDaemon(byte(qos))
+
+	return &result, nil
 }
 
 func (controller MqttController) Search() []mqtt.Device {
@@ -57,19 +62,24 @@ func (controller MqttController) Search() []mqtt.Device {
 	wait := make(chan bool)
 
 	handler := func(message mqtt.MqttMessage) {
-		log.Debug("[mqtt-controller] {" + message.Topic + "}: <" + message.Payload + ">")
+		log.Debug("[mqtt-controller] Discovered: {" + message.Topic + "}: <" + message.Payload + ">")
 		mqttDevice := mqtt.ParseDiscoveryMessage(message)
 
 		subscriptionChannels[mqttDevice.StateTopic] = make(chan string, 128)
 
-		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, mqttQOS, listenSubscriptionHandler)
+		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, controller.Qos, listenSubscriptionHandler)
 		if err != nil {
 			log.Error("[mqtt-controller] Error while subscribing to state topic: " + mqttDevice.StateTopic)
 			return
 		}
 
 		mqttDevice.SetStateFunc = func(value string) error {
-			controller.brokerConnection.SendMessage(mqttDevice.CommandTopic, mqttQOS, mqttRetained, value)
+			controller.brokerConnection.SendMessage(mqtt.MqttMessage{
+				Topic:    mqttDevice.CommandTopic,
+				Qos:      controller.Qos,
+				Retained: mqttRetained,
+				Payload:  value,
+			})
 			return nil
 		}
 
@@ -80,6 +90,13 @@ func (controller MqttController) Search() []mqtt.Device {
 
 		result = append(result, mqttDevice)
 	}
+	controller.brokerConnection.SendMessage(mqtt.MqttMessage{
+		Topic:    controller.AliveTopic,
+		Qos:      controller.Qos,
+		Retained: false,
+		Payload:  "alive",
+	})
+
 	controller.brokerConnection.Subscribe(controller.ctx, controller.DiscoveryTopic, 0, handler)
 
 	utils.AlertAfter(mqttSearchTimeoutSeconds*time.Second, wait)
@@ -92,6 +109,8 @@ func (controller MqttController) Search() []mqtt.Device {
 func listenSubscriptionHandler(message mqtt.MqttMessage) {
 	subscriptionChannels[message.Topic] <- message.Payload
 }
+
+var publishQueue = []mqtt.MqttMessage{}
 
 func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error {
 	log := controller.ctx.Value("logger").(logging.Logger)
@@ -130,11 +149,45 @@ func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error 
 	}
 
 	device.AdvertiseStateFunc = func(value string) error {
-		controller.brokerConnection.SendMessage(device.StateTopic, byte(device.Qos), false, value)
+		controller.brokerConnection.SendMessage(mqtt.MqttMessage{
+			Topic:    device.StateTopic,
+			Qos:      byte(device.Qos),
+			Retained: mqttRetained,
+			Payload:  value,
+		})
 		return nil
 	}
 
-	controller.brokerConnection.SendMessage(discoveryTopic, byte(device.Qos), mqttRetained, string(message))
+	publishQueue = append(publishQueue, mqtt.MqttMessage{
+		Topic:    discoveryTopic,
+		Qos:      byte(device.Qos),
+		Retained: mqttRetained,
+		Payload:  string(message),
+	})
+	//controller.brokerConnection.SendMessage(discoveryTopic, byte(device.Qos), mqttRetained, string(message))
 
 	return nil
+}
+
+func (controller MqttController) discoveryDaemon(qos byte) {
+	log := controller.ctx.Value("logger").(logging.Logger)
+
+	discoverySearch := make(chan bool)
+	controller.brokerConnection.Subscribe(controller.ctx, controller.AliveTopic, qos, func(message mqtt.MqttMessage) {
+		log.Info("[mqtt-controller] Received alive message")
+		discoverySearch <- true
+	})
+
+	go func() {
+		for {
+			select {
+			case <-controller.ctx.Done():
+				return
+			case <-discoverySearch:
+				for _, message := range publishQueue {
+					controller.brokerConnection.SendMessage(message)
+				}
+			}
+		}
+	}()
 }
