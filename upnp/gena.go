@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -116,7 +115,7 @@ var serviceSubscriptionDB = make(map[string][]subscription) //TODO Also consider
 // For upnp control point
 // --------------------------------------------------------------------------------------
 
-func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, handler func(string), stateVars ...string) (*context.CancelFunc, error) {
+func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service Service, handler func(string), stateVars ...string) (*context.CancelFunc, string, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	listenCtx, cancel := context.WithCancel(ctx)
@@ -125,7 +124,7 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	if err != nil {
 		log.Error("[gena] An error occurred while listening for events: " + err.Error())
 		cancel()
-		return nil, err
+		return nil, "", err
 	}
 	log.Info("[gena] Start listening for subscription messages at " + addr.String())
 
@@ -153,12 +152,12 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 			if err != nil {
 				log.Error("[gena] An error occurred while parsing URLBase (upnp <1.1): " + err.Error())
 				cancel()
-				return nil, err
+				return nil, "", err
 			}
 		} else {
 			log.Error("[gena] Nor presentation url neither URLBase (upnp <= 1.1) are valid")
 			cancel()
-			return nil, errors.New("Device without valid url")
+			return nil, "", errors.New("Device without valid url")
 		}
 	}
 
@@ -170,7 +169,7 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	if err != nil {
 		log.Error("[gena] An error occurred while creating a new request: " + err.Error())
 		cancel()
-		return nil, err
+		return nil, "", err
 	}
 
 	callbackUrl := "http://" + utils.GetLocalIP() + ":" + strconv.Itoa(addr.Port)
@@ -201,26 +200,20 @@ func GenaSubscribeToService(ctx context.Context, rootDevice RootDevice, service 
 	if err != nil {
 		log.Error("[gena] Error while sending subscription request: " + err.Error())
 		cancel()
-		return nil, err
+		return nil, "", err
 	}
-	defer subscriptionResponse.Body.Close()
 
 	if subscriptionResponse.StatusCode != 200 {
 		log.Error("[gena] Subscription returned with code: " + subscriptionResponse.Status)
 		cancel()
-		return nil, errors.New(subscriptionResponse.Status)
+		return nil, "", errors.New(subscriptionResponse.Status)
 	}
 
-	data, err := io.ReadAll(subscriptionResponse.Body)
-	if err != nil {
-		log.Error("[gena] Error while reading subscription response data: " + err.Error())
-		cancel()
-		return nil, err
-	}
+	sid := subscriptionResponse.Header.Get("SID")
 
-	log.Info("[gena] Subscription returned with code: " + subscriptionResponse.Status + " - " + string(data))
+	log.Info("[gena] Subscription returned with code: " + subscriptionResponse.Status + " - sid: " + string(sid))
 
-	return &cancel, nil
+	return &cancel, sid, nil
 }
 
 func genaSubscriptionEventHandler(ctx context.Context, packet TCPPacket, handler func(string)) {
@@ -308,6 +301,76 @@ func listenAtDaemon(ctx context.Context, listener *net.TCPListener, handler func
 
 		}
 	}()
+}
+
+func GenaUnsubscribeFromService(ctx context.Context, rootDevice RootDevice, service Service, sid string) error {
+	log := ctx.Value("logger").(logging.Logger)
+
+	var rootUrl *url.URL
+	var err error
+	if len(rootDevice.Device.PresentationURL) > 0 {
+		if rootDevice.Device.PresentationURL[len(rootDevice.Device.PresentationURL)-1] == '/' {
+			rootDevice.Device.PresentationURL = rootDevice.Device.PresentationURL[:len(rootDevice.Device.PresentationURL)-1]
+		}
+
+		rootUrl, err = url.Parse(rootDevice.Device.PresentationURL)
+
+		if err != nil {
+			log.Warn("[gena] An error occurred while parsing presetation url (upnp 1.1): " + err.Error())
+			rootUrl = nil
+		}
+	}
+
+	// URLBase as fallback
+	if rootUrl == nil {
+		if len(rootDevice.URLBase) > 0 {
+			if rootDevice.URLBase[len(rootDevice.URLBase)-1] == '/' {
+				rootDevice.URLBase = rootDevice.URLBase[:len(rootDevice.URLBase)-1]
+			}
+			rootUrl, err = url.Parse(rootDevice.URLBase + service.EventSubURL)
+
+			if err != nil {
+				log.Error("[gena] An error occurred while parsing URLBase (upnp <1.1): " + err.Error())
+				return err
+			}
+		} else {
+			log.Error("[gena] Nor presentation url neither URLBase (upnp <= 1.1) are valid")
+			return errors.New("Device without valid url")
+		}
+	}
+
+	unsubscriptionUrl, _ := url.Parse(rootUrl.Scheme + "://" + rootUrl.Host + service.EventSubURL)
+
+	log.Debug("[gena] Attempting unsubscription at: " + unsubscriptionUrl.String())
+
+	unsubscriptionRequest, err := http.NewRequest("UNSUBSCRIBE", unsubscriptionUrl.String(), nil)
+	if err != nil {
+		log.Error("[gena] An error occurred while creating a new request: " + err.Error())
+		return err
+	}
+
+	unsubscriptionRequest.Header.Set("HOST", unsubscriptionUrl.Host)
+	unsubscriptionRequest.Header.Set("SID", sid)
+
+	httpClient := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	unsubscriptionResponse, err := httpClient.Do(unsubscriptionRequest)
+	if err != nil {
+		log.Error("[gena] Error while sending unsubscription request: " + err.Error())
+		return err
+	}
+	defer unsubscriptionResponse.Body.Close()
+
+	if unsubscriptionResponse.StatusCode != 200 {
+		log.Error("[gena] Unsubscription returned with code: " + unsubscriptionResponse.Status)
+		return errors.New(unsubscriptionResponse.Status)
+	}
+
+	log.Info("[gena] Unubscription returned with code: " + unsubscriptionResponse.Status)
+
+	return nil
 }
 
 // --------------------------------------------------------------------------------------
@@ -530,7 +593,7 @@ func sendNotificationToSubscribers(ctx context.Context, notification notificatio
 
 		conn, err := net.DialTCP("tcp", nil, addr)
 		if err != nil {
-			log.Error("[gena] Error while dial TCP addres")
+			log.Error("[gena] Error while dial TCP address")
 			return
 		}
 		defer conn.Close()

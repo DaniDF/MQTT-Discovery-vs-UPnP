@@ -15,7 +15,7 @@ func Search(ctx context.Context, st string) (map[string]goupnp.RootDevice, error
 
 	maybeDevices, err := goupnp.DiscoverDevicesCtx(ctx, st)
 	if err != nil {
-		log.ErrorContext(ctx, "Error occurred while discovering devices")
+		log.Error("[upnp-controller] Error occurred while discovering devices")
 		return map[string]goupnp.RootDevice{}, err
 	}
 	log.Debug("Found " + strconv.Itoa(len(maybeDevices)) + " maybe devices")
@@ -30,6 +30,21 @@ func Search(ctx context.Context, st string) (map[string]goupnp.RootDevice, error
 	return devices, nil
 }
 
+var subscriptions = make(map[string]string)
+
 func Subscribe(ctx context.Context, rootDevice goupnp.RootDevice, service goupnp.Service, handler func(string)) (*context.CancelFunc, error) {
-	return upnp.GenaSubscribeToService(ctx, ConvertRootDevice(rootDevice), ConvertService(service), handler)
+	log := ctx.Value("logger").(logging.Logger)
+
+	cancelFunc, sid, err := upnp.GenaSubscribeToService(ctx, ConvertRootDevice(rootDevice), ConvertService(service), handler)
+
+	if err == nil {
+		subscriptions[rootDevice.Device.UDN+service.ServiceId] = sid
+		log.Info("[upnp-controller] Subscribed successfully. Obtained SID: " + sid)
+	}
+
+	return cancelFunc, err
+}
+
+func Unsubscribe(ctx context.Context, rootDevice goupnp.RootDevice, service goupnp.Service) error {
+	return upnp.GenaUnsubscribeFromService(ctx, ConvertRootDevice(rootDevice), ConvertService(service), subscriptions[rootDevice.Device.UDN+service.ServiceId])
 }
