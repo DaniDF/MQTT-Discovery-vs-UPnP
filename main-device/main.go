@@ -19,16 +19,17 @@ import (
 
 const (
 	devicePresentationUrl = "/device.xml"
-	mqttBrokerHost        = "mqtt.df:1883"
-	mqttDiscoveryTopic    = "test4/#"
+	mqttDiscoveryTopic    = "test/discovery/#"
 	mqttAliveTopic        = "test/alive"
 	mqttPrefix            = "mqttdevice"
-	mqttQos               = 0
 )
 
 type Args struct {
 	NumUpnpDevices int `arg:"-u,--upnp-devs" default:"1" help:"Number of UPnP devices to deploy"`
 	NumMqttDevices int `arg:"-m,--mqtt-devs" default:"1" help:"Number of MQTT devices to deploy"`
+
+	MqttBroker string `arg:"required,--mqtt-broker"  help:"MQTT broker"`
+	MqttQos    int    `arg:"--qos" default:"0" help:"Sets the MQTT Qos"`
 
 	DebugEnabled bool `arg:"-d,--debug" default:"false" help:"Enable debug logging"`
 }
@@ -47,7 +48,7 @@ func main() {
 	ctx, log := logging.Init(ctx, debugLevel)
 
 	if args.NumMqttDevices > 0 {
-		mqttController, err := ctrlmqtt.NewMqttController(ctx, mqttBrokerHost, mqttDiscoveryTopic, mqttAliveTopic, mqttQos)
+		mqttController, err := ctrlmqtt.NewMqttController(ctx, args.MqttBroker, mqttDiscoveryTopic, mqttAliveTopic, args.MqttQos)
 		if err != nil {
 			log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
 			return
@@ -72,28 +73,33 @@ func main() {
 				}
 			}()
 		}
+
+		time.Sleep(time.Hour)
 	}
 
 	if args.NumUpnpDevices > 0 {
-		upnp.GenaSubscriptionDaemon(ctx)
-
 		for range args.NumUpnpDevices {
-			httpServer, err := upnp.NewHttpServer(ctx)
-			if err != nil {
-				return
-			}
+			go func() {
+				gena := upnp.NewGenaListener(ctx)
+				ctx = context.WithValue(ctx, "gena", gena)
 
-			rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
-			if err != nil {
-				return
-			}
+				httpServer, err := upnp.NewHttpServer(ctx)
+				if err != nil {
+					return
+				}
 
-			httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
-			upnp.SsdpDevice(ctx, rootDevice)
+				rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port)
+				if err != nil {
+					return
+				}
+
+				httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
+				upnp.SsdpDevice(ctx, rootDevice)
+			}()
 		}
 
-		time.Sleep(2 * time.Minute)
-		cancel() //TODO Find a solution it is unused
+		time.Sleep(time.Hour)
+		cancel()
 	}
 }
 
@@ -124,6 +130,7 @@ func CreateMqttSwitchDevice(ctx context.Context) (mqtt.Device, error) {
 
 func CreateUpnpRootDevice(ctx context.Context, upnpPort int) (upnp.RootDevice, error) {
 	log := ctx.Value("logger").(logging.Logger)
+	gena := ctx.Value("gena").(*upnp.GenaState)
 
 	uuid, err := upnp.GenerateRandomUUID()
 	if err != nil {
@@ -232,28 +239,30 @@ func CreateUpnpRootDevice(ctx context.Context, upnpPort int) (upnp.RootDevice, e
 		log.Error("[main-device] Error adding action " + err.Error())
 		return upnp.RootDevice{}, err
 	}
-	err = scpd.AddAction(upnp.FormalAction{
-		Name: "Read",
-		ArgumentList: []upnp.FormalArgument{
-			{
-				Name:                 "ActualValue",
-				Direction:            upnp.Out,
-				RelatedStateVariable: &actualValueVariable,
+	/*
+		err = scpd.AddAction(upnp.FormalAction{
+			Name: "Read",
+			ArgumentList: []upnp.FormalArgument{
+				{
+					Name:                 "ActualValue",
+					Direction:            upnp.Out,
+					RelatedStateVariable: &actualValueVariable,
+				},
 			},
-		},
-	})
-	if err != nil {
-		log.Error("[main-device] Error adding action " + err.Error())
-		return upnp.RootDevice{}, err
-	}
+		})
+		if err != nil {
+			log.Error("[main-device] Error adding action " + err.Error())
+			return upnp.RootDevice{}, err
+		}
+	*/
 
 	result.Device.ServiceList[0].SCPD = scpd
 	result.Device.ServiceList[0].Handler = func(arguments ...device.Argument) device.Response {
-		log.Debug("[service] Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + arguments[0].Value)
+		log.Info("[service] Execute service: urn:upnp-org:serviceId:SwitchPower action: Turn value: " + arguments[0].Value)
 
 		switch arguments[0].Value {
 		case "0", "1":
-			upnp.GenaNotifySubscribers(result.Device.ServiceList[0], []device.Argument{
+			gena.GenaNotifySubscribers(result.Device.ServiceList[0], []device.Argument{
 				{
 					Name:  "actualState",
 					Value: arguments[0].Value,

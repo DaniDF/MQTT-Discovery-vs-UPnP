@@ -65,7 +65,7 @@ type EqualComparable[T any] interface {
 	Equal(T) bool
 }
 
-// Deletes all the oppurence of element in slice
+// Deletes all the occurence of element in slice
 func DeleteElement[T EqualComparable[T]](slice []T, element T) []T {
 	var result []T
 	for _, el := range slice {
