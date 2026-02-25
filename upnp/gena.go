@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mobile.dani.df/device-service"
@@ -104,12 +105,6 @@ type notification struct {
 	service             Service
 	stateVariableValues []stateVariableValue
 }
-
-var insertUpdateSubscription = make(chan subscription, 128)
-var deleteSubscription = make(chan int64, 128)
-var notificationStateChange = make(chan notification, 128)
-var subscriptionsDB = make(map[int64]subscription)          //TODO Also consider sync.Map
-var serviceSubscriptionDB = make(map[string][]subscription) //TODO Also consider sync.Map
 
 // --------------------------------------------------------------------------------------
 // For upnp control point
@@ -377,7 +372,27 @@ func GenaUnsubscribeFromService(ctx context.Context, rootDevice RootDevice, serv
 // For upnp device
 // --------------------------------------------------------------------------------------
 
-func GenaSubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
+type GenaState struct {
+	insertUpdateSubscription chan subscription
+	deleteSubscription       chan int64
+	notificationStateChange  chan notification
+	subscriptionsDB          sync.Map
+	serviceSubscriptionDB    sync.Map
+}
+
+func NewGenaListener(ctx context.Context) *GenaState {
+	result := &GenaState{
+		insertUpdateSubscription: make(chan subscription, 128),
+		deleteSubscription:       make(chan int64, 128),
+		notificationStateChange:  make(chan notification, 128),
+	}
+
+	result.genaSubscriptionDaemon(ctx)
+
+	return result
+}
+
+func (state *GenaState) GenaSubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
 	log := ctx.Value("logger").(logging.Logger)
 
 	subscriptionRequest, err := parseSubscriptionRequest(ctx, request)
@@ -394,10 +409,10 @@ func GenaSubscriptionHandler(ctx context.Context, service Service, request *http
 
 	var sid string
 	if subscriptionRequest.sid != "" && subscriptionRequest.nt == "" && subscriptionRequest.callback == nil { // Subscription update
-		sid, err = createNewSubscription(subscriptionRequest, service)
+		sid, err = state.createNewSubscription(subscriptionRequest, service)
 
 	} else if subscriptionRequest.sid == "" && subscriptionRequest.nt == "upnp:event" && subscriptionRequest.callback != nil { //New subscription
-		sid, err = createNewSubscription(subscriptionRequest, service)
+		sid, err = state.createNewSubscription(subscriptionRequest, service)
 
 	} else { // Error invalid combination
 		log.Warn("[gena] Received invalid subscription message: invalid combination of SID, NT, CALLBACK")
@@ -455,7 +470,7 @@ func parseSubscriptionRequest(ctx context.Context, request *http.Request) (subsc
 	return result, nil
 }
 
-func createNewSubscription(subscriptionRequest subscriptionRequest, service Service) (string, error) {
+func (state *GenaState) createNewSubscription(subscriptionRequest subscriptionRequest, service Service) (string, error) {
 	subscriber := subscriber{
 		eventKey:             0,
 		httpSuppertedVersion: "1.0",
@@ -472,12 +487,12 @@ func createNewSubscription(subscriptionRequest subscriptionRequest, service Serv
 		callback:   subscriptionRequest.callback,
 	}
 
-	insertUpdateSubscription <- subscription //TODO Check if it is successful
+	state.insertUpdateSubscription <- subscription //TODO Check if it is successful
 
 	return fmt.Sprintf("%d", now.UnixNano()), nil
 }
 
-func GenaUnsubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
+func (state *GenaState) GenaUnsubscriptionHandler(ctx context.Context, service Service, request *http.Request, response http.ResponseWriter) error {
 	log := ctx.Value("logger").(logging.Logger)
 
 	unsubscribeRequestSid := request.Header.Get("SID")
@@ -490,7 +505,7 @@ func GenaUnsubscriptionHandler(ctx context.Context, service Service, request *ht
 
 	log.Debug("[gena] Received unsubscribe message, sid: " + unsubscribeRequestSid)
 
-	deleteSubscription <- sid
+	state.deleteSubscription <- sid
 
 	response.WriteHeader(200)
 
@@ -512,47 +527,53 @@ func generateNegativeResponse(errorCode int, response http.ResponseWriter) {
 	response.WriteHeader(errorCode)
 }
 
-func GenaSubscriptionDaemon(ctx context.Context) {
+func (state *GenaState) genaSubscriptionDaemon(ctx context.Context) {
 	go func() {
 		log := ctx.Value("logger").(logging.Logger)
-
-		dbLock := make(chan bool, 1)
-		dbLock <- true
 
 		log.Info("[gena] Starting subscription daemon")
 		for {
 			select {
-			case sid := <-deleteSubscription:
+			case sid := <-state.deleteSubscription:
 				go func() {
-					<-dbLock
+					s, found := state.subscriptionsDB.Load(sid)
+					if found {
+						sub := s.(subscription)
+						service := sub.service
 
-					service := subscriptionsDB[sid].service
-					subscription := subscriptionsDB[sid]
-					serviceSubscriptionDB[service.ServiceId] = utils.DeleteElement(serviceSubscriptionDB[service.ServiceId], subscription)
-					delete(subscriptionsDB, sid)
+						sSub, _ := state.serviceSubscriptionDB.Load(service.ServiceId)
+						serviceSubscriptions := sSub.([]subscription)
+						serviceSubscriptions = utils.DeleteElement(serviceSubscriptions, sub)
 
-					dbLock <- true
+						state.serviceSubscriptionDB.Store(service.ServiceId, serviceSubscriptions)
+						state.subscriptionsDB.Delete(sid)
+					}
 				}()
-			case subscription := <-insertUpdateSubscription:
+			case newSubscription := <-state.insertUpdateSubscription:
 				go func() {
-					<-dbLock
+					state.subscriptionsDB.Store(newSubscription.sid, newSubscription)
 
-					subscriptionsDB[subscription.sid] = subscription
-					serviceSubscriptionDB[subscription.service.ServiceId] = append(serviceSubscriptionDB[subscription.service.ServiceId], subscription)
-
-					dbLock <- true
+					sSub, found := state.serviceSubscriptionDB.Load(newSubscription.service.ServiceId)
+					var serviceSubscriptions []subscription
+					if found {
+						serviceSubscriptions = sSub.([]subscription)
+					} else {
+						serviceSubscriptions = []subscription{}
+					}
+					serviceSubscriptions = append(serviceSubscriptions, newSubscription)
+					state.serviceSubscriptionDB.Store(newSubscription.service.ServiceId, serviceSubscriptions)
 				}()
-			case notification := <-notificationStateChange:
+			case notification := <-state.notificationStateChange:
 				go func() {
-					<-dbLock
+					sOriginal, found := state.serviceSubscriptionDB.Load(notification.service.ServiceId)
 
-					subscribersOriginal := serviceSubscriptionDB[notification.service.ServiceId]
-					subscribers := make([]subscription, len(subscribersOriginal))
-					subscribers = slices.Clone(subscribersOriginal)
+					if found {
+						subscribersOriginal := sOriginal.([]subscription)
+						subscribers := make([]subscription, len(subscribersOriginal))
+						subscribers = slices.Clone(subscribersOriginal)
 
-					dbLock <- true
-
-					sendNotificationToSubscribers(ctx, notification, subscribers)
+						sendNotificationToSubscribers(ctx, notification, subscribers)
+					}
 				}()
 			case <-ctx.Done():
 				return
@@ -561,7 +582,7 @@ func GenaSubscriptionDaemon(ctx context.Context) {
 	}()
 }
 
-func GenaNotifySubscribers(service Service, arguments []device.Argument) {
+func (state *GenaState) GenaNotifySubscribers(service Service, arguments []device.Argument) {
 	stateVariableValues := []stateVariableValue{}
 
 	for _, argument := range arguments {
@@ -575,7 +596,7 @@ func GenaNotifySubscribers(service Service, arguments []device.Argument) {
 		}
 	}
 
-	notificationStateChange <- notification{
+	state.notificationStateChange <- notification{
 		service:             service,
 		stateVariableValues: stateVariableValues,
 	}

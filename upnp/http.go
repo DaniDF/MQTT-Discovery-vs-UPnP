@@ -187,12 +187,13 @@ func serviceControlHandler(ctx context.Context, rootDevice RootDevice, request *
 }
 
 func serviceEventHandler(ctx context.Context, rootDevice RootDevice, request *http.Request, response http.ResponseWriter) {
+	gena := ctx.Value("gena").(*GenaState)
 	serviceFoundHandler := func(service Service) {
 		switch request.Method {
 		case "SUBSCRIBE":
-			GenaSubscriptionHandler(ctx, service, request, response)
+			gena.GenaSubscriptionHandler(ctx, service, request, response)
 		case "UNSUBSCRIBE":
-			GenaUnsubscriptionHandler(ctx, service, request, response)
+			gena.GenaUnsubscriptionHandler(ctx, service, request, response)
 		}
 	}
 
