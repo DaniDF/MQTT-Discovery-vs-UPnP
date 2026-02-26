@@ -2,7 +2,7 @@ package upnp
 
 import (
 	"context"
-	"strconv"
+	"net/url"
 
 	"mobile.dani.df/logging"
 	"mobile.dani.df/upnp"
@@ -13,17 +13,37 @@ import (
 func Search(ctx context.Context, st string) (map[string]goupnp.RootDevice, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	maybeDevices, err := goupnp.DiscoverDevicesCtx(ctx, st)
+	maybeDevices, err := upnp.Search(ctx, st)
 	if err != nil {
-		log.Error("[upnp-controller] Error occurred while discovering devices")
-		return map[string]goupnp.RootDevice{}, err
+		log.Error("[upnp-controller] Error while searching for maybeDevices")
+		return nil, err
 	}
-	log.Debug("Found " + strconv.Itoa(len(maybeDevices)) + " maybe devices")
 
+	return search(ctx, maybeDevices)
+}
+
+func SearchMx(ctx context.Context, st string, mx int) (map[string]goupnp.RootDevice, error) {
+	log := ctx.Value("logger").(logging.Logger)
+
+	maybeDevices, err := upnp.SearchMx(ctx, st, mx)
+	if err != nil {
+		log.Error("[upnp-controller] Error while searching for maybeDevices")
+		return nil, err
+	}
+
+	return search(ctx, maybeDevices)
+}
+
+func search(ctx context.Context, maybeDevices []upnp.MSearchResult) (map[string]goupnp.RootDevice, error) {
 	devices := make(map[string]goupnp.RootDevice)
 	for _, maybeDevice := range maybeDevices {
-		if maybeDevice.Err == nil {
-			devices[maybeDevice.Root.Device.UDN] = *maybeDevice.Root
+		deviceUrl, err := url.Parse(maybeDevice.Location)
+		if err == nil {
+			device, err := goupnp.DeviceByURLCtx(ctx, deviceUrl)
+			if err == nil {
+				devices[device.Device.UDN] = *device
+			}
+
 		}
 	}
 

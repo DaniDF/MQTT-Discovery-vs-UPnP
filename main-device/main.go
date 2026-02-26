@@ -25,10 +25,10 @@ const (
 )
 
 type Args struct {
-	NumUpnpDevices int `arg:"-u,--upnp-devs" default:"1" help:"Number of UPnP devices to deploy"`
-	NumMqttDevices int `arg:"-m,--mqtt-devs" default:"1" help:"Number of MQTT devices to deploy"`
+	NumUpnpDevices int `arg:"-u,--upnp-devs" default:"0" help:"Number of UPnP devices to deploy"`
+	NumMqttDevices int `arg:"-m,--mqtt-devs" default:"0" help:"Number of MQTT devices to deploy"`
 
-	MqttBroker string `arg:"required,--mqtt-broker"  help:"MQTT broker"`
+	MqttBroker string `arg:"--mqtt-broker" default:" "  help:"MQTT broker"`
 	MqttQos    int    `arg:"--qos" default:"0" help:"Sets the MQTT Qos"`
 
 	DebugEnabled bool `arg:"-d,--debug" default:"false" help:"Enable debug logging"`

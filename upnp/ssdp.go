@@ -37,6 +37,10 @@ type MSearchResult struct {
 // --------------------------------------------------------------------------------------
 
 func Search(ctx context.Context, st string) ([]MSearchResult, error) {
+	return SearchMx(ctx, st, ssdpMSearchMX)
+}
+
+func SearchMx(ctx context.Context, st string, mx int) ([]MSearchResult, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
 	addr, err := net.ResolveUDPAddr("udp4", ssdpMulticastAddress+":"+strconv.Itoa(ssdpMulticastPort))
@@ -52,7 +56,7 @@ func Search(ctx context.Context, st string) ([]MSearchResult, error) {
 	}
 	defer conn.Close()
 
-	message := generateSSDPMSearchMulticast(st, ssdpMSearchMX)
+	message := generateSSDPMSearchMulticast(st, mx)
 
 	packConn := ipv4.NewPacketConn(conn)
 	err = packConn.SetMulticastTTL(2)
@@ -62,7 +66,7 @@ func Search(ctx context.Context, st string) ([]MSearchResult, error) {
 
 	packConn.WriteTo([]byte(message.message), nil, addr)
 
-	responses, err := listenMSearchResponse(ctx, conn, ssdpMSearchMX)
+	responses, err := listenMSearchResponse(ctx, conn, mx)
 	if err != nil {
 		return []MSearchResult{}, err
 	}
@@ -81,18 +85,16 @@ func Search(ctx context.Context, st string) ([]MSearchResult, error) {
 func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]string, error) {
 	log := ctx.Value("logger").(logging.Logger)
 
-	timeoutRead := make(chan bool, 1)
-	utils.AlertAfter(time.Duration(mx+1)*time.Second, timeoutRead)
-
 	responses := []string{}
 	messageBuffer := make([]byte, 1024)
+	deadLine := time.Now().Add(time.Duration(mx) * time.Second)
 	for {
 		select {
-		case <-timeoutRead:
+		case <-time.After(time.Duration(mx) * time.Second):
 			log.Debug("[ssdp] Listen for M-Search responses ended by timeout")
 			return responses, nil
 		default:
-			conn.SetReadDeadline(time.Now().Add(time.Duration(mx) * time.Second))
+			conn.SetReadDeadline(deadLine)
 			n, source, err := conn.ReadFromUDP(messageBuffer)
 			if err != nil {
 				errorMessageSplit := strings.Split(err.Error(), ":")
@@ -102,6 +104,9 @@ func listenMSearchResponse(ctx context.Context, conn *net.UDPConn, mx int) ([]st
 					log.Error("[ssdp] Error while receiving a message: " + err.Error())
 					return responses, err
 				}
+
+				return responses, nil
+
 			} else {
 				responses = append(responses, string(messageBuffer[:n]))
 				log.Debug("[ssdp] Received message from " + source.String())

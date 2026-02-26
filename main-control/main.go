@@ -23,10 +23,12 @@ const (
 )
 
 type Args struct {
-	NumUpnpControl int `arg:"-u,--upnp-ctrl" default:"1" help:"Number of UPnP control points to deploy"`
-	NumMqttControl int `arg:"-m,--mqtt-ctrl" default:"1" help:"Number of MQTT control points to deploy"`
+	NumUpnpControl int `arg:"-u,--upnp-ctrl" default:"0" help:"Number of UPnP control points to deploy"`
+	NumMqttControl int `arg:"-m,--mqtt-ctrl" default:"0" help:"Number of MQTT control points to deploy"`
 
-	MqttBroker string `arg:"required,--mqtt-broker"  help:"MQTT broker"`
+	Mx int `arg:"--mx" default:"0" help:"Set a manual value for MX"`
+
+	MqttBroker string `arg:"--mqtt-broker" default:" "  help:"MQTT broker"`
 	MqttQos    int    `arg:"--qos" default:"0" help:"Sets the MQTT Qos"`
 
 	DebugEnabled bool `arg:"-d,--debug" default:"false" help:"Enable debug logging"`
@@ -87,13 +89,23 @@ func main() {
 		}
 	}
 
-	waitUpnpControls := make(chan bool, args.NumUpnpControl)
+	mx := args.Mx
+	if args.Mx <= 0 {
+		if args.NumUpnpControl < 5 {
+			mx = 2
+		} else if args.NumUpnpControl < 10 {
+			mx = 4
+		} else {
+			mx = args.NumUpnpControl / 2
+		}
+	}
 
+	waitUpnpControls := make(chan bool, args.NumUpnpControl)
 	for range args.NumUpnpControl {
 		go func() {
 			// Start - SSDP
 			startSearchTime := time.Now()
-			rootDevices, err := upnp.Search(ctx, "urn:schemas-upnp-org:device:BinaryLight:1")
+			rootDevices, err := upnp.SearchMx(ctx, "urn:schemas-upnp-org:device:BinaryLight:1", mx)
 			if err != nil {
 				log.Error("[main-control] Error fetching rootDevices: " + err.Error())
 				return
@@ -120,8 +132,8 @@ func main() {
 
 			waitRootDevice := make(chan bool, len(rootDevices))
 
-			for i, rootDevice := range rootDevices {
-				func() {
+			for _, rootDevice := range rootDevices {
+				go func() {
 					testService := rootDevice.Device.Services[0]
 
 					var startRPCTime time.Time
@@ -164,7 +176,7 @@ func main() {
 					elapsedTime = time.Since(startRPCTime)
 
 					log.Info("[main-control] RPC returned: " + reply.ActualValue)
-					log.Trace(i + " [main-control] RPC Elapsed time: " + elapsedTime.String())
+					log.Trace("[main-control] RPC Elapsed time: " + elapsedTime.String())
 					// End - SOAP
 
 					/*
@@ -190,7 +202,7 @@ func main() {
 	for range args.NumUpnpControl {
 		select {
 		case <-waitUpnpControls:
-		case <-time.After(upnpControlsTimeout):
+		case <-time.After(upnpControlsTimeout + time.Duration(mx)*time.Second):
 			log.Warn("[main-control] Not all the upnp controls have returned before timeout")
 			return
 		}
