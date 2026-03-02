@@ -18,6 +18,9 @@ const (
 	mqttDiscoveryTopic = "test/discovery/#"
 	mqttAliveTopic     = "test/alive"
 
+	mqttControlsTimeout = 1800 * time.Second
+	mqttRPCTimeout      = 10 * time.Second
+
 	upnpControlsTimeout = 50 * time.Second
 	genaTimeout         = 10 * time.Second
 )
@@ -74,7 +77,13 @@ func main() {
 			}
 
 			for range len(mqttDevices) {
-				<-waitMqttRPC
+				select {
+				case <-waitMqttRPC:
+				case <-time.After(mqttRPCTimeout):
+					log.Warn("[main-control] Not received all RPC responses before timeout")
+					waitMqttControls <- true
+					return
+				}
 			}
 
 			waitMqttControls <- true
@@ -84,7 +93,8 @@ func main() {
 	for range args.NumMqttControl {
 		select {
 		case <-waitMqttControls:
-		case <-time.After(50 * time.Second):
+		case <-time.After(mqttControlsTimeout):
+			log.Warn("[main-control] Not mqtt controller returned before timeout")
 			return
 		}
 	}
@@ -100,8 +110,10 @@ func main() {
 		}
 	}
 
-	//testSoap(ctx, args, mx, logLevel)
-	testGena(ctx, args, mx, logLevel)
+	if args.NumUpnpControl > 0 {
+		testSoap(ctx, args, mx, logLevel)
+		testGena(ctx, args, mx, logLevel)
+	}
 }
 
 func testSoap(ctx context.Context, args Args, mx int, logLevel slog.Level) {

@@ -3,7 +3,9 @@ package mqtt
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"mobile.dani.df/logging"
@@ -13,20 +15,18 @@ import (
 
 const (
 	mqttSearchTimeoutSeconds = 10
-	//mqttQOS                  = 0
-	mqttRetained = false
+	mqttRetained             = false
 )
 
 type MqttController struct {
-	mqttConfig       mqtt.MqttConfig
-	ctx              context.Context
-	brokerConnection mqtt.MqttConnection
-	DiscoveryTopic   string
-	AliveTopic       string
-	Qos              byte
+	mqttConfig           mqtt.MqttConfig
+	ctx                  context.Context
+	brokerConnection     mqtt.MqttConnection
+	DiscoveryTopic       string
+	AliveTopic           string
+	Qos                  byte
+	subscriptionChannels sync.Map
 }
-
-var subscriptionChannels = make(map[string]chan string)
 
 func NewMqttController(ctx context.Context, mqttBrokerHost string, discoveryTopic string, aliveTopic string, qos int) (*MqttController, error) {
 	log := ctx.Value("logger").(logging.Logger)
@@ -54,7 +54,7 @@ func NewMqttController(ctx context.Context, mqttBrokerHost string, discoveryTopi
 	return &result, nil
 }
 
-func (controller MqttController) Search() []mqtt.Device {
+func (controller *MqttController) Search() []mqtt.Device {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
 	result := []mqtt.Device{}
@@ -65,9 +65,9 @@ func (controller MqttController) Search() []mqtt.Device {
 		log.Debug("[mqtt-controller] Discovered: {" + message.Topic + "}: <" + message.Payload + ">")
 		mqttDevice := mqtt.ParseDiscoveryMessage(message)
 
-		subscriptionChannels[mqttDevice.StateTopic] = make(chan string, 128)
+		controller.subscriptionChannels.Store(mqttDevice.StateTopic, make(chan string, 128))
 
-		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, controller.Qos, listenSubscriptionHandler)
+		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, controller.Qos, controller.listenSubscriptionHandler)
 		if err != nil {
 			log.Error("[mqtt-controller] Error while subscribing to state topic: " + mqttDevice.StateTopic)
 			return
@@ -84,7 +84,12 @@ func (controller MqttController) Search() []mqtt.Device {
 		}
 
 		mqttDevice.GetStateFunc = func() (string, error) {
-			state := <-subscriptionChannels[mqttDevice.StateTopic]
+			stateChannel, found := controller.subscriptionChannels.Load(mqttDevice.StateTopic)
+			if !found {
+				log.Error("[mqtt-controller] Error while fetching state channel for " + mqttDevice.StateTopic)
+				return "", errors.New("State channel not found")
+			}
+			state := <-stateChannel.(chan string)
 			return state, nil
 		}
 
@@ -106,13 +111,20 @@ func (controller MqttController) Search() []mqtt.Device {
 	return result
 }
 
-func listenSubscriptionHandler(message mqtt.MqttMessage) {
-	subscriptionChannels[message.Topic] <- message.Payload
+func (controller *MqttController) listenSubscriptionHandler(message mqtt.MqttMessage) {
+	log := controller.ctx.Value("logger").(logging.Logger)
+
+	subscriptionChannel, found := controller.subscriptionChannels.Load(message.Topic)
+	if !found {
+		log.Error("[mqtt-controller] Error while fetching subscription channel for " + message.Topic)
+	} else {
+		subscriptionChannel.(chan string) <- message.Payload
+	}
 }
 
 var publishQueue = []mqtt.MqttMessage{}
 
-func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error {
+func (controller *MqttController) PublishSwitchDevice(device *mqtt.Device) error {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
 	discoveryTopic := controller.DiscoveryTopic
@@ -136,16 +148,27 @@ func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error 
 		return err
 	}
 
-	subscriptionChannels[device.CommandTopic] = make(chan string)
+	controller.subscriptionChannels.Store(device.CommandTopic, make(chan string))
 
 	handler := func(message mqtt.MqttMessage) {
-		subscriptionChannels[device.CommandTopic] <- message.Payload
+		commandChannel, found := controller.subscriptionChannels.Load(device.CommandTopic)
+		if !found {
+			log.Error("[mqtt-controller] Error while fetching command channel for " + device.CommandTopic)
+		} else {
+			commandChannel.(chan string) <- message.Payload
+		}
 	}
 
 	controller.brokerConnection.Subscribe(controller.ctx, device.CommandTopic, byte(device.Qos), handler)
 
 	device.GetRequiredState = func() string {
-		return <-subscriptionChannels[device.CommandTopic]
+		commandChannel, found := controller.subscriptionChannels.Load(device.CommandTopic)
+		if !found {
+			log.Error("[mqtt-controller] Error while fetching command channel for " + device.CommandTopic)
+			return ""
+		}
+
+		return <-commandChannel.(chan string)
 	}
 
 	device.AdvertiseStateFunc = func(value string) error {
@@ -164,12 +187,11 @@ func (controller MqttController) PublishSwitchDevice(device *mqtt.Device) error 
 		Retained: mqttRetained,
 		Payload:  string(message),
 	})
-	//controller.brokerConnection.SendMessage(discoveryTopic, byte(device.Qos), mqttRetained, string(message))
 
 	return nil
 }
 
-func (controller MqttController) discoveryDaemon(qos byte) {
+func (controller *MqttController) discoveryDaemon(qos byte) {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
 	discoverySearch := make(chan bool)
