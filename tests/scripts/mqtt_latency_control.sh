@@ -11,7 +11,7 @@ function ctrl_c() {
     exit
 }
 
-for mqtt_devices in {1..100} ;
+for mqtt_devices in {1..9} {10..100..10} ;
 do
     for qos in {0..2} ;
     do
@@ -19,7 +19,7 @@ do
 
         sleep 5
 
-        for mqtt_controls in {1..100}
+        for mqtt_controls in {1..9} {10..100..10}
         do
             echo "Running mqtt_devices: $mqtt_devices, mqtt_controls $mqtt_controls, qos: $qos"
             

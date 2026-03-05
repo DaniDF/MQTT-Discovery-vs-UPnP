@@ -16,7 +16,7 @@ for upnp_devices in {1..9} {10..100..10} ;
 do
     ssh -f -MS /tmp/ssh-device user@10.2.0.107 "tests/bin/device -u $upnp_devices > tests/logs/device_test-latency_u-"$upnp_devices"_$(date +"%Y%m%d_%H%M%S_%N").log 2>&1 < /dev/null"
 
-    sleep 3
+    sleep 5
 
     for upnp_controls in {1..9} {10..100..10} ;
     do
