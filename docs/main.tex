@@ -11,6 +11,8 @@
 \usepackage{verbatim}
 \usepackage{graphicx}
 \usepackage{cite}
+\usepackage{xcolor}
+\usepackage{soul}
 \hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore}
 % updated with editorial comments 8/9/2021
 
@@ -35,7 +37,7 @@ https://github.com/DaniDF/MQTT-Discovery-vs-UPnP}
 \maketitle
 
 \begin{abstract}
-TODO 
+\textcolor{blue}{\hl{TODO}}
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -63,9 +65,9 @@ MQTT, discovery, upnp, project activity.
 \end{itemize}
 
 In a environment populated by a large variety of different devices with different needs and capabilities designing a standard useful for communicating with them is a challenge.
-Discovery protocols are designed to reconcile the dichotomy between the requirement for highly specific, ad-hoc protocols capable of granular device control and the necessity for generalized frameworks that can accommodate a highly heterogeneous ecosystem of devices.
+Discovery protocols are designed to reconcile the dichotomy between the requirement for highly specific, ad-hoc protocols capable of granular device control and the necessity for generalised frameworks that can accommodate a highly heterogeneous ecosystem of devices.
 By employing these protocols, an \gls{iot} device achieves autonomous configuration through active participation in the advertisement and solicitation of network-based services.
-Devices functioning as service providers systematically broadcast their available resources, the specific services they offer, and the requisite operational guidelines for invocation, such as the appropriate \gls{api}. Furthermore, discovery protocols streamline the connectivity paradigm between clients and target resources or services. 
+Devices functioning as service providers systematically broadcast their available resources, the specific services they offer, and the operational guidelines for invocation, such as the appropriate \gls{api}. Furthermore, discovery protocols streamline the connectivity paradigm between clients and target resources or services. 
 Consequently, this architecture ensures that clients are adequately equipped to transmit necessary input parameters to the services and successfully retrieve the corresponding computational results.
 
 In particular this dissertation is focused on \gls{upnp} and a protocol based on \gls{mqtt} knwon as \gls{mqttd}. \gls{upnp} is a discovery protocol without infrastructural nodes where each node can advertise and listen for services. In particular nodes that make available services are called \textit{devices} and those searching for services are called \textit{control-points}.
@@ -73,9 +75,9 @@ In \gls{mqttd} there is a third entity called \textit{broker} that facilitates t
 
 This dissertation wants to highlight the performance differences between \gls{upnp} and \gls{mqttd} in \gls{iot} environment. The main focus is measuring and comparing latency and robustness in different deployment configurations: how different amount of data producers and consumers affect the protocol performances.
 
-%TODO frase sui risultati
+\textcolor{blue}{\hl{TODO frase sui risultati}}
 
-%TODO remainder
+\textcolor{blue}{\hl{TODO add remainder of}}
 
 \section{Discovery protocols for IoT}
 % * Definizione di discovery per IoT
@@ -98,13 +100,18 @@ A device can dynamically join a network and obtain a locally valid \textit{IP} a
 
 \gls{upnp} can be divided into 4 parts: \gls{ssdp}, \gls{http}, \gls{soap} and \gls{gena}.
 \gls{ssdp} is a network protocol based on the Internet protocol suite for advertisement and discovery of network services and presence information. It is a text-based protocol based on a non fully compliant version of \gls{http} over UDP \cite{ocf_upnp_architecture_2020}.
-\gls{soap} is a messaging protocol specification for exchanging structured information in XML message format. In \gls{upnp} it is used by the \textit{control-point} for requesting the execution of services with specified arguments on the \textit{device} and by the \textit{device} for returning the results.
+
+In \gls{ssdp}, whenever a node intends to discover a \textit{device}, it issues an $\text{M-SEARCH}$ request specifying the desired device characteristics. Upon receiving this request, a \textit{device} determines whether it satisfies the specified criteria and, if so, returns an appropriate response. Since the number of potential responses cannot be known in advance, a burst of simultaneous replies on the network may lead to overloading of the \textit{control point}. To mitigate this risk, the \textit{control point} includes the $\text{MX}$ parameter in the search request \cite{ocf_upnp_architecture_2020}. This parameter defines the maximum number of seconds within which responding \textit{devices} may transmit their replies. Consequently, each \textit{device} waits for a random interval between 0 and the value specified by $\text{MX}$ before sending its response.
+
+\gls{soap} is a messaging protocol specification for exchanging structured information in XML message format. It is used by the \textit{control-point} for requesting the execution of services with specified arguments on the \textit{device} and by the \textit{device} for returning the results.
 \gls{gena} is an event notification protocol used by \textit{devices} to publish variables updates to subscribed \textit{control-points}. \gls{gena} supports both unicast and multicast event notification.
 
 \gls{mqttd} is a discovery protocol based on \gls{mqtt}. \gls{mqtt} is a lightweight publish-subscribe messaging protocol designed for constrained devices. \gls{mqttd} is a metadata‑exchange convention built on top of the \gls{mqtt} protocol that standardises how devices and services describe themselves and publish their configuration to an \gls{mqtt} broker. It enables automatic detection, registration, and integration of devices in home‑automation or IoT ecosystems without requiring manual configuration.
 
+The \gls{mqtt} protocol assigns a specific \gls{qos} level to each message, establishing the delivery guarantees required across potentially unreliable networks. The protocol defines three hierarchical levels of service: \gls{qos} 0 (At-Most-Once), which provides best-effort delivery without retransmission mechanisms; \gls{qos} 1 (At-Least-Once), which ensures delivery but permits the possibility of duplicate messages; and \gls{qos} 2 (Exactly-Once), the most complex level, which employs a multi-step handshake to guarantee that a message is delivered once and only once. Furthermore, publishers can append a \textit{retained} flag to a message. This instructs the \gls{mqtt} broker to persist the last message for a given topic, ensuring that any newly subscribed clients immediately receive the most recent data upon connection, independent of the initial publication event.
+
 This dissertation aims to evaluate the performance of \gls{mqttd} and \gls{upnp} in deployments with different number of deployed devices and different number of control devices. For \gls{mqttd} will be evaluated how the performances changes with respect to the requested \gls{qos}.
-The evaluated metrics for this study are latency and robustness. The first wants to measure the time needed for discovery and the execution of the first interaction between \textit{control-point} and \textit{device}. The second wants to measure the ratio between the discovered devices and the actual deployed devices.
+The evaluated metrics for this study are latency and robustness. The first wants to measure the time needed for discovery and the execution of the first interaction between \textit{control-point} and \textit{device}. The second wants to measure the ratio between the discovered devices and the actual deployed devices. \textcolor{blue}{\hl{TODO Da vedere magari da girare perché i grafici mostrano l'errore quindi la percentuale dei mancanti non dei presenti}}
 
 \section{Implementation}
 % * Descrivere il fatto di aver implementato UPnP/MQTT
@@ -112,98 +119,113 @@ The evaluated metrics for this study are latency and robustness. The first wants
 % * Differenze rispetto allo standard (MX non limitato a 5)
 % * Motivare la scelta delle tecnologie
 
-In order to implement a testing environment a fully compatible \gls{upnp} \textit{device} and \textit{control-point} were implemented based on the official documentation \cite{ocf_upnp_architecture_2020}. All its parts were implemented: \gls{ssdp}, \gls{soap}, \gls{gena}. For \gls{http} the standard library already available in Go Lang is used.
-In order to demonstrate compatibility based on the standard a third part \gls{upnp} client (only) library is used \cite{goupnp}.
+To establish a testing environment, a fully compatible \gls{upnp} \textit{device} and \textit{control point} were implemented in accordance with the official specification \cite{ocf_upnp_architecture_2020}. All major protocol components were developed, including \gls{ssdp}, \gls{soap}, and \gls{gena} \cite{DaniDF_MQTT-Discovery_vs_UPnP}. For \gls{http}, the standard library provided by Go was employed. To further validate standards compliance and interoperability, a third-party \gls{upnp} client library was also used \cite{goupnp}.
 
-For \gls{mqttd} a already available implementation of \gls{mqtt} is used and was implemented only a wrapper for the \gls{mqttd} data format. As \gls{mqtt}-Broker Mosquitto is chosen as one of the most popular broker in IoT deployments.
+For \gls{mqttd}, an existing implementation of the \gls{mqtt} protocol was adopted, while only a wrapper for the \gls{mqttd} data format was developed. As the \gls{mqtt} broker, Mosquitto was selected due to its widespread adoption and popularity in IoT deployments.
 
-All the software components implemented by the author are written in Go Lang for maximising efficiency but still using a higher level programming language.
+\gls{mqttd} defines two mechanisms for \textit{device} presence discovery. The first relies on a retained message published by a \textit{device} when it joins the network; this message is subsequently delivered by the broker to a \textit{control point} when the latter subscribes to the corresponding topic \cite{mqttd}. The second mechanism is based on solicitation: the \textit{control-point} publishes a message on a predetermined topic to which all \textit{devices} are subscribed. Upon receiving such a solicitation message, each \textit{device} responds by sending its discovery message\cite{mqttd}.
+
+The software developed for this work \cite{DaniDF_MQTT-Discovery_vs_UPnP} supports both mechanisms; however, the experiments were conducted exclusively using the solicitation-based approach.
+
+All software components developed by the author \cite{DaniDF_MQTT-Discovery_vs_UPnP} were implemented in Go in order to balance high execution efficiency with the advantages of a higher-level programming language.
 
 \section{Experimental results}
 % * Sintesi obiettivo degli esperimenti
 % * Come fatto setup
 % * Foto setup sperimentale
 
-The experiments were conducted in a real closed network where only the testing equipment were connected. All the experiments were run both wireless using IEEE802.11n and cabled. During the tests were deployed 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 devices and control-points in all the possible values combinations. In case of \gls{mqtt} each combination were tested for \gls{qos} 0, 1 and 2. Also each combination were tested 30 times and the results are averaged in order to minimise statistical fluctuations.
-
-In \gls{ssdp} every time a node wants to discover a \textit{device} sends a $\text{M-SEARCH}$ request asking if a device is present with some described characteristics. As soon as a \textit{device} receives the request and confirms that it is compliant with the requested device it sends back a response. Since the number of responses can not be predicted the \textit{control-point} add to the search request the parameter $\text{MX}$. This parameter indicates the maximum value of seconds that the \textit{control-point} waits for the response. A \textit{device} that need to respond to a request has to wait a random number of milliseconds between 0 and the value specified by $\text{MX}$. In this way a possible \gls{dos} done through the flooding of the network of responses is mitigated \cite{ocf_upnp_architecture_2020}.
+Experimental evaluations were executed in a closed, dedicated network infrastructure to isolate the testing equipment. All trials were performed over both wired and wireless (IEEE 802.11n) connections. The deployment of \textit{devices} and \textit{control-points} was scaled incrementally: initially in unit steps from 1 to 10, and subsequently in decadal steps up to 100. For \gls{mqtt}, each configuration was evaluated across \gls{qos} levels 0, 1, and 2. To mitigate statistical variance, each experimental combination was repeated 30 times, and the results were averaged.
 
 The experiments tried to evaluate the effectiveness of the $\text{MX}$ parameter by removing the random wait time from the \textit{device} response.
 
-In the following subsections present the measured metrics for values 1, 5, 10, 50, 100 but a more detailed verision can be find in appendix \ref{apx_more_dta_points}.
+The following subsections present the measured metrics for values 1, 5, 10, 50, 100 but a more detailed version can be found in appendix \ref{apx_more_data_points}.
 
-\subsection{Lantency comparison}
-%\begin{itemize}
-%    \item Espandere obiettivo test (motivazione)
-%    \item Descrizione esperimento (metodi)
-%\end{itemize}
+\subsection{Latency comparison}
+% * Espandere obiettivo test (motivazione)
+% * Descrizione esperimento (metodi)
 
-\begin{figure}[!h]
-    \subfloat[]{\includegraphics[width=1.61in]{results/upnp_latency_light.png}%
-    \label{fig_upnp_latency_light}}
-    \hfill
-    \subfloat[]{\includegraphics[width=1.61in]{results/mqtt_latency_q2_light.png}%
-    \label{fig_upnp_latency_light_cabled}}
-    \caption{Comparison of (a) \gls{upnp} and (b) \gls{mqtt} latency. See \ref{fig_upnp_latency} and \ref{fig_mqtt_latency_q0}, \ref{fig_mqtt_latency_q1}, \ref{fig_mqtt_latency_q2}}
+\begin{figure}[!ht]
+    \includegraphics[width=1\linewidth]{results/upnp_latency_light.png}
+    \label{fig_upnp_latency_light}
+    \caption{\gls{upnp} latency comparison with different \textit{devices} and \textit{control-points}. See \ref{fig_apx_upnp_latency}.}
     \label{fig_upnp_latency}
 \end{figure}
 
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
-
-Grafico 1 5 10 50 100 comparison M
-
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
-
-\subsubsection{Wired vs Cabled}
-\begin{itemize}
-    \item Motivazione dei test
-\end{itemize}
-
-Grafico 1 10 50 comparison UvM
-
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
-
-\subsection{Robustness comparison}
-\begin{itemize}
-    \item Espandere obiettivo test (motivazione)
-    \item Descrizione esperimento (metodi)
-\end{itemize}
-
-Grafico 1 5 10 50 100 comparison U
-
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
-
-Grafico 1 5 10 50 100 comparison M
-
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
-
-\subsubsection{Wired vs Cabled}
-\begin{itemize}
-    \item Motivazione dei test
-\end{itemize}
-
-Grafico 1 10 50 comparison UvM
-
-\begin{itemize}
-    \item Osservazione
-\end{itemize}
+The comparison shown in Figure \ref{fig_upnp_latency} reveals a clearly distinguishable performance difference between the configuration with a single deployed \textit{device} and those with higher numbers of deployed \textit{devices}. Furthermore, Figure \ref{fig_apx_upnp_latency_wireless} in Appendix \ref{apx_more_data_points} shows that the difference between the configurations with 2 and 3 deployed devices further supports the observation that setups with fewer deployed \textit{devices} are associated with higher latency. By contrast, configurations involving more than 10 devices yield relatively stable latency values, which begin to diverge noticeably only when the number of \textit{control points} exceeds 30.
 
 \begin{figure}[!ht]
-\centering
-\includegraphics[width=2.5in]{results/upnp_robustness_light.png}
-\caption{Simulation results for the network.}
-\label{fig_1}
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q0_light.png}
+    \label{fig_mqtt_latency_q0_light}}
+    \hfill
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q1_light.png}
+    \label{fig_mqtt_latency_q1_light}}
+    \\
+    \centering
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q2_light.png}
+    \label{fig_mqtt_latency_q2_light}}
+    \caption{\gls{mqtt} latency comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_latency_q0_wireless}, \ref{fig_apx_mqtt_latency_q1_wireless}, \ref{fig_apx_mqtt_latency_q2_wireless}.}
+    \label{fig_mqtt_latency}
 \end{figure}
+
+The latency measurements obtained from the \gls{mqttd} tests indicate a clear distinction between the lower \gls{qos} levels, \gls{qos} 0 and 1, and the highest level, \gls{qos} 2. As shown in Figures \ref{fig_mqtt_latency_q0_light} and \ref{fig_mqtt_latency_q1_light}, configurations with the minimum number of deployed \textit{control-points} exhibit a latency of approximately 600\,ms. This value rises to around 1200\,ms in the case of 2 deployed \textit{control-points}, after which a sharp decrease is observed. By contrast, this behaviour is not evident in Figure \ref{fig_mqtt_latency_q2_light}, where the latency values corresponding to 1 and 2 deployed \textit{control-points} remain similar, and the subsequent reduction does not occur at the same configuration point. Instead, elevated latency values persist up to at least 5 deployed \textit{control points}.
+
+\subsubsection{Comparing the results}
+The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_latency} indicates that \gls{upnp} consistently exhibits lower latency than \gls{mqttd}. For configurations with more than one deployed \textit{control point}, the observed latency values are approximately eight times lower than those of the best-performing \gls{mqttd} configuration.
+
+\subsection{Robustness comparison}
+\begin{figure}[!ht]
+    \includegraphics[width=1\linewidth]{results/upnp_robustness_light.png}
+    \label{fig_upnp_robustness_light}
+    \caption{\gls{upnp} robustness comparison with different \textit{devices} and \textit{control-points}. See \ref{fig_apx_upnp_robustness}.}
+    \label{fig_upnp_robustness}
+\end{figure}
+
+For \gls{upnp}, the ratio between the number of \textit{devices} discovered by the \textit{control points} and the actual number of deployed \textit{devices} is observed to be consistent across the different configurations (Figure \ref{fig_upnp_robustness}). The error rate increases rapidly, following an approximately logarithmic trend up to 20 deployed \textit{control points}; it then remains almost constant until 40 \textit{control points}, after which it rises sharply toward 100\%. A more detailed representation in Figure \ref{fig_apx_upnp_robustness} further confirms that this behaviour is nearly identical for all considered configurations.
+
+\begin{figure}[!ht]
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q0_light.png}
+    \label{fig_mqtt_robustness_q0_light}}
+    \hfill
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q1_light.png}
+    \label{fig_mqtt_robustness_q1_light}}
+    \\
+    \centering
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q2_light.png}
+    \label{fig_mqtt_robustness_q2_light}}
+    \caption{\gls{mqtt} robustness comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_robustness_q0_wireless}, \ref{fig_apx_mqtt_robustness_q1_wireless}, \ref{fig_apx_mqtt_robustness_q2_wireless}.}
+    \label{fig_mqtt_robustness}
+\end{figure}
+
+The results obtained for \gls{mqttd} show that the error rate rises sharply from almost 0\% to 100\% when the number of deployed \textit{control-points} approaches 10 for every configuration. This suggests that, during the 10-second interval reserved for the discovery phase, none of the \textit{control points} was able to receive the discovery announcement and respond within the required time frame.
+
+\subsubsection{Comparing the results}
+A comparison of the robustness of the two discovery protocols indicates that \gls{mqttd} exhibits greater robustness when only a very small number of \textit{control points} is deployed. However, once the threshold of 10 deployed \textit{control points} is reached, \gls{mqttd} displays an error rate of 100\%, whereas \gls{upnp} still maintains a lower, although substantial, error rate corresponding to approximately 60\% of \textit{devices} not being discovered.
+
+\subsection{\gls{upnp} MX = 0}
+\begin{figure}[!ht]
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_0_latency_light.png}
+    \label{fig_upnp_0_latency_light}}
+    \hfill
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_0_robustness_light.png}
+    \label{fig_upnp_0_robustness_light}}
+    \caption{\gls{upnp} (a) latency and (b) robustness different \textit{devices} \textit{control-points}. See \ref{fig_apx_upnp_0_latency}, \ref{fig_apx_upnp_0_robustness}.}
+    \label{fig_upnp_0_latency-robustness}
+\end{figure}
+
+This experiment was performed by eliminating any artificial waiting time from the \gls{upnp} discovery process. A comparison between Figure \ref{fig_upnp_0_latency_light} and Figure \ref{fig_upnp_latency_light} shows that the latency is reduced for all \textit{device} configurations, with the most pronounced improvement occurring in scenarios with a smaller number of deployed \textit{control points}. 
+
+In terms of robustness, Figure \ref{fig_upnp_0_robustness_light} indicates that, relative to Figure \ref{fig_upnp_robustness_light}, the error rate rises more rapidly toward 100\%. Nevertheless, the configuration with a single deployed \textit{device} is able to complete the experiment without reaching a 100\% error rate, thus exhibiting behaviour different from that shown in Figure \ref{fig_upnp_robustness_light}.
+
+\subsection{\gls{gena}}
+\textcolor{blue}{\hl{TODO Grafici da generare}}
+
+
+\subsection{Wired vs Cabled}
+\begin{itemize}
+    \item Motivazione dei test
+\end{itemize}
+
+\subsection{General comments?????}\textcolor{blue}{\hl{TODO da capire il nome}}
 
 \section{Conclusions}
 \begin{itemize}
