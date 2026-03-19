@@ -9,12 +9,12 @@ import (
 
 	"github.com/alexflint/go-arg"
 
-	"mobile.dani.df/device-service"
-	"mobile.dani.df/logging"
-	"mobile.dani.df/mqtt"
-	ctrlmqtt "mobile.dani.df/mqtt-control-point"
-	upnp "mobile.dani.df/upnp"
-	"mobile.dani.df/utils"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt"
+	ctrlmqtt "github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point"
+	upnp "github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 )
 
 const (

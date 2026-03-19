@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 	"golang.org/x/net/ipv4"
-	"mobile.dani.df/logging"
-	"mobile.dani.df/utils"
 )
 
 const (

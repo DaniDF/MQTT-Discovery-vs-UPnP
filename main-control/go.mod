@@ -1,5 +1,5 @@
-module mobile.dani.df/control
+module github.com/DaniDF/MQTT-Discovery-vs-UPnP/control
 
 go 1.26.0
 
-require golang.org/x/net v0.50.0
+require golang.org/x/net v0.52.0

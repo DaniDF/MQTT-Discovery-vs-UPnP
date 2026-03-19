@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"mobile.dani.df/device-service"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
 )
 
 /* See 2.3

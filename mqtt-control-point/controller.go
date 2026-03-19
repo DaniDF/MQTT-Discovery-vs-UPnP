@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"mobile.dani.df/logging"
-	"mobile.dani.df/mqtt"
-	"mobile.dani.df/utils"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 )
 
 const (

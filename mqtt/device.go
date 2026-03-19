@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"mobile.dani.df/utils"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 )
 
 type Device struct {

@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	device "mobile.dani.df/device-service"
-	"mobile.dani.df/logging"
-	"mobile.dani.df/utils"
+	device "github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 )
 
 const soapTimeoutSeconds = 30 // Timeout for a SOAP request (see 3.2.5)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/url"
 
-	"mobile.dani.df/logging"
-	"mobile.dani.df/upnp"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp"
 
 	"github.com/huin/goupnp"
 )

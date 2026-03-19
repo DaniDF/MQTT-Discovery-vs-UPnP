@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 	"github.com/huin/goupnp"
 	"github.com/huin/goupnp/scpd"
-	"mobile.dani.df/upnp"
-	"mobile.dani.df/utils"
 )
 
 func ConvertRootDevices(goupnpRootDevices []goupnp.RootDevice) []upnp.RootDevice {

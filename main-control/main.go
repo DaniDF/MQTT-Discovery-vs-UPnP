@@ -9,9 +9,9 @@ import (
 
 	"github.com/alexflint/go-arg"
 
-	"mobile.dani.df/logging"
-	mqtt "mobile.dani.df/mqtt-control-point"
-	"mobile.dani.df/upnp-control-point"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
+	mqtt "github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp-control-point"
 )
 
 const (

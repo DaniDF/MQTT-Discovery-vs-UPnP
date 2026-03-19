@@ -3,8 +3,8 @@ package mqtt
 import (
 	"context"
 
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"mobile.dani.df/logging"
 )
 
 type MqttConfig struct {
