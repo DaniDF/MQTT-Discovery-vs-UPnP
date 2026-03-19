@@ -154,20 +154,12 @@ The following subsections present the measured metrics for values 1, 5, 10, 50, 
 The comparison shown in Figure \ref{fig_upnp_latency} reveals a clearly distinguishable performance difference between the configuration with a single deployed \textit{device} and those with higher numbers of deployed \textit{devices}. Furthermore, Figure \ref{fig_apx_upnp_latency_wireless} in Appendix \ref{apx_more_data_points} shows that the difference between the configurations with 2 and 3 deployed devices further supports the observation that setups with fewer deployed \textit{devices} are associated with higher latency. By contrast, configurations involving more than 10 devices yield relatively stable latency values, which begin to diverge noticeably only when the number of \textit{control points} exceeds 30.
 
 \begin{figure}[!ht]
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q0_light.png}
-    \label{fig_mqtt_latency_q0_light}}
-    \hfill
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q1_light.png}
-    \label{fig_mqtt_latency_q1_light}}
-    \\
-    \centering
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency_q2_light.png}
-    \label{fig_mqtt_latency_q2_light}}
-    \caption{\gls{mqtt} latency comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_latency_q0_wireless}, \ref{fig_apx_mqtt_latency_q1_wireless}, \ref{fig_apx_mqtt_latency_q2_wireless}.}
+    \includegraphics[width=1\linewidth]{results/mqtt_latency_light.png}
+    \caption{\gls{mqtt} latency comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_latency_wireless}.}
     \label{fig_mqtt_latency}
 \end{figure}
 
-The latency measurements obtained from the \gls{mqttd} tests indicate a clear distinction between the lower \gls{qos} levels, \gls{qos} 0 and 1, and the highest level, \gls{qos} 2. As shown in Figures \ref{fig_mqtt_latency_q0_light} and \ref{fig_mqtt_latency_q1_light}, configurations with the minimum number of deployed \textit{control-points} exhibit a latency of approximately 600\,ms. This value rises to around 1200\,ms in the case of 2 deployed \textit{control-points}, after which a sharp decrease is observed. By contrast, this behaviour is not evident in Figure \ref{fig_mqtt_latency_q2_light}, where the latency values corresponding to 1 and 2 deployed \textit{control-points} remain similar, and the subsequent reduction does not occur at the same configuration point. Instead, elevated latency values persist up to at least 5 deployed \textit{control points}.
+The latency measurements obtained from the \gls{mqttd} tests indicate a clear distinction between the lower \gls{qos} levels, \gls{qos} 0 and 1, and the highest level, \gls{qos} 2. As shown in Figure \ref{fig_mqtt_latency}, configurations with the minimum number of deployed \textit{control-points} exhibit a latency of approximately 600\,ms. This value rises to around 1200\,ms in the case of 2 deployed \textit{control-points}, after which a sharp decrease is observed. By contrast, this behaviour is not evident in Figure \ref{fig_mqtt_latency}, where the latency values corresponding to 1 and 2 deployed \textit{control-points} remain similar, and the subsequent reduction does not occur at the same configuration point. Instead, elevated latency values persist up to at least 5 deployed \textit{control points}.
 
 \subsubsection{Comparing the results}
 The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_latency} indicates that \gls{upnp} consistently exhibits lower latency than \gls{mqttd}. For configurations with more than one deployed \textit{control point}, the observed latency values are approximately eight times lower than those of the best-performing \gls{mqttd} configuration.
@@ -183,16 +175,8 @@ The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_la
 For \gls{upnp}, the ratio between the number of \textit{devices} discovered by the \textit{control points} and the actual number of deployed \textit{devices} is observed to be consistent across the different configurations (Figure \ref{fig_upnp_robustness}). The error rate increases rapidly, following an approximately logarithmic trend up to 20 deployed \textit{control points}; it then remains almost constant until 40 \textit{control points}, after which it rises sharply toward 100\%. A more detailed representation in Figure \ref{fig_apx_upnp_robustness} further confirms that this behaviour is nearly identical for all considered configurations.
 
 \begin{figure}[!ht]
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q0_light.png}
-    \label{fig_mqtt_robustness_q0_light}}
-    \hfill
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q1_light.png}
-    \label{fig_mqtt_robustness_q1_light}}
-    \\
-    \centering
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness_q2_light.png}
-    \label{fig_mqtt_robustness_q2_light}}
-    \caption{\gls{mqtt} robustness comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_robustness_q0_wireless}, \ref{fig_apx_mqtt_robustness_q1_wireless}, \ref{fig_apx_mqtt_robustness_q2_wireless}.}
+    \includegraphics[width=1\linewidth]{results/mqtt_robustness_light.png}
+    \caption{\gls{mqtt} robustness comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_robustness_wireless}.}
     \label{fig_mqtt_robustness}
 \end{figure}
 
@@ -217,7 +201,13 @@ This experiment was performed by eliminating any artificial waiting time from th
 In terms of robustness, Figure \ref{fig_upnp_0_robustness_light} indicates that, relative to Figure \ref{fig_upnp_robustness_light}, the error rate rises more rapidly toward 100\%. Nevertheless, the configuration with a single deployed \textit{device} is able to complete the experiment without reaching a 100\% error rate, thus exhibiting behaviour different from that shown in Figure \ref{fig_upnp_robustness_light}.
 
 \subsection{\gls{gena}}
-\textcolor{blue}{\hl{TODO Grafici da generare}}
+\begin{figure}[!ht]
+    \includegraphics[width=1\linewidth]{results/gena_latency.png}
+    \caption{\gls{gena} latency with different \textit{control-points}.}
+    \label{fig_gena_latency}
+\end{figure}
+
+This experiment evaluates the delivery latency of unicast events as a function of the number of subscribed \textit{control-points}. Data presented in Figure \ref{fig_gena_latency} indicates that for configurations with fewer than 10 subscribers, latency and the number of \textit{control-points} share an inverse relationship. Conversely, exceeding this limit results in a direct correlation, where additional \textit{control-points} lead to increased latency.
 
 
 \subsection{Wired vs Cabled}
