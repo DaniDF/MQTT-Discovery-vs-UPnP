@@ -59,7 +59,7 @@ func main() {
 			}
 
 			startSearchTime := time.Now()
-			mqttDevices := mqttController.Search()
+			mqttDevices := mqttController.Search(0)
 			stopSearchTime := time.Since(startSearchTime)
 			log.Trace("[main-control] Mqtt search found " + strconv.Itoa(len(mqttDevices)) + " devices in: " + stopSearchTime.String())
 

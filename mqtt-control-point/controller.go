@@ -54,20 +54,30 @@ func NewMqttController(ctx context.Context, mqttBrokerHost string, discoveryTopi
 	return &result, nil
 }
 
-func (controller *MqttController) Search() []mqtt.Device {
+// Searches for mqtt devices
+// Timeout: seconds to wait for messages, if <= 0 uses the default timeout of 10 seconds
+func (controller *MqttController) Search(timeout int) []mqtt.Device {
 	log := controller.ctx.Value("logger").(logging.Logger)
 
 	result := []mqtt.Device{}
+
+	if timeout <= 0 {
+		timeout = mqttSearchTimeoutSeconds
+	}
 
 	wait := make(chan bool)
 
 	handler := func(message mqtt.MqttMessage) {
 		log.Debug("[mqtt-controller] Discovered: {" + message.Topic + "}: <" + message.Payload + ">")
-		mqttDevice := mqtt.ParseDiscoveryMessage(message)
+		mqttDevice, err := mqtt.ParseDiscoveryMessage(message, controller.DiscoveryTopic)
+		if err != nil {
+			log.Warn("[mqtt-controller] Received not well formatted device discovery message: " + message.Payload + " topic: " + message.Topic + ". Error: " + err.Error())
+			return
+		}
 
 		controller.subscriptionChannels.Store(mqttDevice.StateTopic, make(chan string, 128))
 
-		err := controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, controller.Qos, controller.listenSubscriptionHandler)
+		err = controller.brokerConnection.Subscribe(controller.ctx, mqttDevice.StateTopic, controller.Qos, controller.listenSubscriptionHandler)
 		if err != nil {
 			log.Error("[mqtt-controller] Error while subscribing to state topic: " + mqttDevice.StateTopic)
 			return
@@ -104,7 +114,7 @@ func (controller *MqttController) Search() []mqtt.Device {
 
 	controller.brokerConnection.Subscribe(controller.ctx, controller.DiscoveryTopic, 0, handler)
 
-	utils.AlertAfter(mqttSearchTimeoutSeconds*time.Second, wait)
+	utils.AlertAfter(time.Duration(timeout)*time.Second, wait)
 
 	<-wait
 

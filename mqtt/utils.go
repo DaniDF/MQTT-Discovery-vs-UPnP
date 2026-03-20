@@ -17,46 +17,21 @@ func GenerateID() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x", buffer[:2], buffer[2:4], buffer[4:6], buffer[6:8]), nil
 }
 
-func ParseDiscoveryMessage(message MqttMessage) Device {
-	/* //TODO Check if you want to maintain this division or switch to "Everythig is a Device" policy
-	deviceType := strings.Split(message.Topic, "/")[1]
-
-
-	result := Device{
-		SwitchRootDevice: nil,
-		SensorRootDevice: nil,
-	}
-	switch deviceType {
-	case "switch":
-		result.SwitchRootDevice = parseSwitchDeviceMessage(message.Payload)
-	case "sensor":
-		result.SensorRootDevice = parseSensorDeviceMessage(message.Payload)
-	default:
-		result.SwitchRootDevice = parseSwitchDeviceMessage(message.Payload)
+func ParseDiscoveryMessage(message MqttMessage, discoveryPrefix string) (Device, error) {
+	result, err := parseDevice(message.Payload)
+	if err != nil {
+		return Device{}, err
 	}
 
-	return result
-	*/
+	prefix := strings.TrimSuffix(discoveryPrefix, "#")
+	prefix = strings.TrimSuffix(prefix, "/") + "/"
+	result.Id = strings.Split(strings.TrimPrefix(message.Topic, prefix), "/")[1]
 
-	result := parseDevice(message.Payload)
-	result.Id = strings.Split(message.Topic, "/")[2]
-	return result
+	return result, nil
 }
 
-func parseDevice(message string) Device {
+func parseDevice(message string) (Device, error) {
 	result := Device{}
-	json.Unmarshal([]byte(message), &result)
-	return result
-}
-
-func parseSwitchDeviceMessage(message string) *SwitchRootDevice {
-	result := SwitchRootDevice{}
-	json.Unmarshal([]byte(message), &result)
-	return &result
-}
-
-func parseSensorDeviceMessage(message string) *SensorRootDevice {
-	result := SensorRootDevice{}
-	json.Unmarshal([]byte(message), &result)
-	return &result
+	err := json.Unmarshal([]byte(message), &result)
+	return result, err
 }
