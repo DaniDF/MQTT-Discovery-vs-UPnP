@@ -9,7 +9,7 @@ import (
 
 	"github.com/alexflint/go-arg"
 
-	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device"
 	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
 	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt"
 	ctrlmqtt "github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point"

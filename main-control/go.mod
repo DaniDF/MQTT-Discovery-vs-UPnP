@@ -1,4 +1,4 @@
-module github.com/DaniDF/MQTT-Discovery-vs-UPnP/control
+module github.com/DaniDF/MQTT-Discovery-vs-UPnP/main-control
 
 go 1.26.0
 

@@ -1,4 +1,4 @@
-module github.com/DaniDF/MQTT-Discovery-vs-UPnP/device
+module github.com/DaniDF/MQTT-Discovery-vs-UPnP/main-device
 
 go 1.26.0
 

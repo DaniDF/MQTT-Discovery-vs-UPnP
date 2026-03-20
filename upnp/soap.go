@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	device "github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
+	device "github.com/DaniDF/MQTT-Discovery-vs-UPnP/device"
 	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging"
 	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils"
 )

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device-service"
+	"github.com/DaniDF/MQTT-Discovery-vs-UPnP/device"
 )
 
 /* See 2.3
