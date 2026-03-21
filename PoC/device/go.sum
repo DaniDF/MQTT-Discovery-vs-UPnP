@@ -2,10 +2,10 @@ github.com/DaniDF/MQTT-Discovery-vs-UPnP/device v1.0.1 h1:KxIQCcuxjUcpOXC36RrikF
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/device v1.0.1/go.mod h1:jpyZqhqgd5GTi01B0w42An7xcDCYcXG9v99EiIjkLIY=
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging v1.0.0 h1:9tqSDajljniTqZsvJAyOx05PfzUt1N7ufmCdx16giGk=
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/logging v1.0.0/go.mod h1:N8e2D4WcboNShkU6uoejhMt0Eaam8p71vahLy+4wGvE=
-github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt v1.0.0 h1:R6EHpJm1u7FYvi0cIpo91iJz4khC89uRb6PMJROgx+U=
-github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt v1.0.0/go.mod h1:ixNYBRM3bppy5GrswOEo0FhmuVA+38htuLHtXtmJY0U=
-github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point v1.0.0 h1:+dfGzhlFj5VfJYalPLbqLlvns511bFoTupej6BGAzhM=
-github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point v1.0.0/go.mod h1:Kttk7MWbB9PAA7SH+DGe995Ij1FVhFFpti7exDIkrAI=
+github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt v1.0.1 h1:nN10FWv7lz2XhSKw4Huj+EARX1xePB/qfSLeVPR0EYE=
+github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt v1.0.1/go.mod h1:ixNYBRM3bppy5GrswOEo0FhmuVA+38htuLHtXtmJY0U=
+github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point v1.0.1 h1:s/l5vmOS8L3DTkXjyioQwsl3KtheJdaEzhOYSfDikMI=
+github.com/DaniDF/MQTT-Discovery-vs-UPnP/mqtt-control-point v1.0.1/go.mod h1:Kttk7MWbB9PAA7SH+DGe995Ij1FVhFFpti7exDIkrAI=
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp v1.0.0 h1:it0dBoGTu7u07+F7KNsLpQ+rHOW1X7MmpUCOWlNJUyg=
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/upnp v1.0.0/go.mod h1:sQhJtOJqNHUooJUoO+fT+02hzo9UNpBzMbCQ+KSgvVk=
 github.com/DaniDF/MQTT-Discovery-vs-UPnP/utils v1.0.0 h1:4rol4/hoWnVFyl39jjaAzAjf2hdOkmFTZVJFFuG3QIU=
@@ -24,7 +24,6 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stianeikeland/go-rpio/v4 v4.6.0 h1:eAJgtw3jTtvn/CqwbC82ntcS+dtzUTgo5qlZKe677EY=
 github.com/stianeikeland/go-rpio/v4 v4.6.0/go.mod h1:A3GvHxC1Om5zaId+HqB3HKqx4K/AqeckxB7qRjxMK7o=
-github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 golang.org/x/net v0.52.0 h1:He/TN1l0e4mmR3QqHMT2Xab3Aj3L9qjbhRm78/6jrW0=

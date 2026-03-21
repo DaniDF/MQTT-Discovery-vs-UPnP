@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	mqttDiscoveryTopic = "test/discovery/#"
-	mqttAliveTopic     = "test/alive"
+	mqttDiscoveryTopic = "homeassistant/discovery/#"
+	mqttAliveTopic     = "homeassistant/alive"
 
 	mqttControlsTimeout = 1800 * time.Second
 	mqttRPCTimeout      = 10 * time.Second
@@ -59,7 +59,7 @@ func main() {
 			}
 
 			startSearchTime := time.Now()
-			mqttDevices := mqttController.Search()
+			mqttDevices := mqttController.Search(2)
 			stopSearchTime := time.Since(startSearchTime)
 			log.Trace("[main-control] Mqtt search found " + strconv.Itoa(len(mqttDevices)) + " devices in: " + stopSearchTime.String())
 

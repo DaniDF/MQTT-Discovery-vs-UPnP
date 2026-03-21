@@ -21,8 +21,8 @@ import (
 
 const (
 	devicePresentationUrl = "/device.xml"
-	mqttDiscoveryTopic    = "test/discovery/#"
-	mqttAliveTopic        = "test/alive"
+	mqttDiscoveryTopic    = "homeassistant/discovery/#"
+	mqttAliveTopic        = "homeassistant/alive"
 	mqttPrefix            = "mqttdevice"
 
 	gpioInitFlash = 30
@@ -30,8 +30,8 @@ const (
 )
 
 type Args struct {
-	NumUpnpDevices int `arg:"-u,--upnp-devs" default:"0" help:"Number of UPnP devices to deploy"`
-	NumMqttDevices int `arg:"-m,--mqtt-devs" default:"0" help:"Number of MQTT devices to deploy"`
+	UpnpEnabled bool `arg:"-u,--upnp" default:"false" help:"Enable UPnP as discovery protocol"`
+	MqttEnabled bool `arg:"-m,--mqtt" default:"false" help:"Enable MQTT as discovery protocol"`
 
 	MqttBroker string `arg:"--mqtt-broker" default:" "  help:"MQTT broker"`
 	MqttQos    int    `arg:"--qos" default:"0" help:"Sets the MQTT Qos"`
@@ -74,65 +74,61 @@ func main() {
 		}
 	}
 
-	if args.NumMqttDevices > 0 {
+	if args.MqttEnabled {
 		mqttController, err := ctrlmqtt.NewMqttController(ctx, args.MqttBroker, mqttDiscoveryTopic, mqttAliveTopic, args.MqttQos)
 		if err != nil {
 			log.Error("[main-device] Error while creating the mqtt controller: " + err.Error())
 			return
 		}
 
-		for range args.NumMqttDevices {
-			mqttDevice, err := CreateMqttSwitchDevice(ctx)
+		mqttDevice, err := CreateMqttSwitchDevice(ctx)
+		if err != nil {
+			return
+		}
+
+		mqttController.PublishSwitchDevice(&mqttDevice)
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Second):
+					requestedState := mqttDevice.GetRequiredState()
+
+					switch requestedState {
+					case "0":
+						switchPin.Low()
+					case "1":
+						switchPin.High()
+					default:
+						switchPin.Toggle()
+					}
+
+					mqttDevice.AdvertiseStateFunc(requestedState)
+				}
+			}
+		}()
+	}
+
+	if args.UpnpEnabled {
+		go func() {
+			gena := upnp.NewGenaListener(ctx)
+			ctx = context.WithValue(ctx, "gena", gena)
+
+			httpServer, err := upnp.NewHttpServer(ctx)
 			if err != nil {
 				return
 			}
 
-			mqttController.PublishSwitchDevice(&mqttDevice)
+			rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port, switchPin)
+			if err != nil {
+				return
+			}
 
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(time.Second):
-						requestedState := mqttDevice.GetRequiredState()
-
-						switch requestedState {
-						case "0":
-							switchPin.Low()
-						case "1":
-							switchPin.High()
-						default:
-							switchPin.Toggle()
-						}
-
-						mqttDevice.AdvertiseStateFunc(requestedState)
-					}
-				}
-			}()
-		}
-	}
-
-	if args.NumUpnpDevices > 0 {
-		for range args.NumUpnpDevices {
-			go func() {
-				gena := upnp.NewGenaListener(ctx)
-				ctx = context.WithValue(ctx, "gena", gena)
-
-				httpServer, err := upnp.NewHttpServer(ctx)
-				if err != nil {
-					return
-				}
-
-				rootDevice, err := CreateUpnpRootDevice(ctx, httpServer.Port, switchPin)
-				if err != nil {
-					return
-				}
-
-				httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
-				upnp.SsdpDevice(ctx, rootDevice)
-			}()
-		}
+			httpServer.ServeRootDevice(rootDevice, devicePresentationUrl)
+			upnp.SsdpDevice(ctx, rootDevice)
+		}()
 	}
 
 	time.Sleep(time.Hour)
