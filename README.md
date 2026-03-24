@@ -2,6 +2,15 @@
 
 This project aims to compare two discovery protocols: [MQTT-Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)(MQTT-D) and [UPnP](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/)
 
+## 💠FYI
+
+Here a quick list of files that may interest you:
+
+* [report](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP.pdf): the report of the experiments in a IEEE format
+* [analysis](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/analysis/data_analysis.ipynb): the analysis file (python notebook) to reproduce the evaluations made in the report
+
+
+
 ## 💠 Overview
 
 This repo refers to an academic study (related to the course "Mobile Systems M" at University of Bologna) that compares latency and robustness of MQTT-D and UPnP.
@@ -43,8 +52,6 @@ sh -c mqtt_latency_control.sh
 ```
 
 This test run simultaneously latency and robustness. These scripts generate log files (a lot) with all the metrics of all test runs.
-
-In order to analyse those file see [Test analysis](## 💠 Test analysis).
 
 
 
