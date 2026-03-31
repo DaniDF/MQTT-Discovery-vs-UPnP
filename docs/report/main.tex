@@ -20,9 +20,14 @@
 % Load acronyms
 \loadglsentries{acronyms}
 
+\definecolor{darkgreen}{RGB}{0, 103, 79}
+\newcommand{\todo}[1]{{\sethlcolor{yellow}\textcolor{blue}{\hl{TODO #1}}}}
+\newcommand{\todocheck}[1][$\rightarrow$]{{\sethlcolor{red}\textcolor{yellow}{\hl{CHECK #1}}}}
+\newcommand{\donecheck}[1][$\rightarrow$]{{\sethlcolor{darkgreen}\textcolor{yellow}{\hl{OK #1}}}}
+
 \begin{document}
 
-\title{IoT Discovery Protocols: a MQTT-D and UPnP Comparison in Dense Network}
+\title{IoT Discovery Protocols: a MQTT-D and UPnP Comparison in Dense Networks}
 
 \author{\IEEEauthorblockN{Daniele Foschi} \\
 \IEEEauthorblockA{\textit{Alma Mater Studiorum Università di Bologna} \textit{UNIBO}\\
@@ -166,20 +171,20 @@ The following subsections present the measured metrics for configurations of \te
     \label{fig_upnp_latency}
 \end{figure}
 
-Figure \ref{fig_upnp_latency} compares latency of \gls{upnp} with different \textit{devices} and \textit{control-points}.
-It reveals a clearly distinguishable performance difference between the configuration with a single deployed \textit{device} and those with higher numbers of deployed \textit{devices}. Furthermore, Figure \ref{fig_apx_upnp_latency_wireless} in Appendix \ref{apx_more_data_points} shows that the difference between the configurations with 2 and 3 deployed devices further supports the observation that setups with fewer deployed \textit{devices} are associated with higher latency. By contrast, configurations involving more than 10 devices yield relatively stable latency values, which begin to diverge noticeably only when the number of \textit{control points} exceeds 30.
+Figure \ref{fig_upnp_latency} presents a comparison of \gls{upnp} latency across varying numbers of \textit{devices} and \textit{control-points}.
+Overall, the results show an approximately linear increase in latency as both parameters grow. The only deviation from this trend occurs in the configuration with a single \textit{device}, which exhibits a latency decrease specifically within the range of one to five \textit{control-points}. Beyond this interval, the latency follows the same increasing trend observed in the other configurations.
 
 \begin{figure}[!ht]
     \includegraphics[width=1\linewidth]{results/mqtt_latency_light.png}
-    \caption{\gls{mqtt} latency comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_latency_wireless}.}
+    \caption{\gls{mqttd} latency comparison with different \textit{devices} \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_latency_wireless}.}
     \label{fig_mqtt_latency}
 \end{figure}
 
-The Figure \ref{fig_mqtt_latency} compares latency of \gls{mqtt} with different \textit{devices} and \textit{control-points}.
-The latency measurements obtained from the \gls{mqttd} tests indicate a clear distinction between the lower \gls{qos} levels, \gls{qos} 0 and 1, and the highest level, \gls{qos} 2. As shown in Figure \ref{fig_mqtt_latency}, configurations with the minimum number of deployed \textit{control-points} exhibit a latency of approximately 600\,ms. This value rises to around 1200\,ms in the case of 2 deployed \textit{control-points}, after which a sharp decrease is observed. By contrast, this behaviour is not evident in Figure \ref{fig_mqtt_latency}, where the latency values corresponding to 1 and 2 deployed \textit{control-points} remain similar, and the subsequent reduction does not occur at the same configuration point. Instead, elevated latency values persist up to at least 5 deployed \textit{control points}.
+Figure \ref{fig_mqtt_latency} compares the latency of \gls{mqttd} under varying numbers of devices, control points, and \gls{qos} levels.
+The measurements reveal no substantial latency differences across the \gls{qos} configurations, aside from a slight increase observed for \gls{qos} 2  relative to \gls{qos} 0 and 1. Latency increases approximately linearly as the number of control points grows from 1 to 50 in scenarios with fewer deployed devices. In contrast, for configurations involving a larger number of devices, the latency trend becomes noticeably flatter.
 
 \subsubsection{Results comparison}
-The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_latency} indicates that \gls{upnp} consistently exhibits lower latency than \gls{mqttd}. For configurations with more than one deployed \textit{control point}, the observed latency values are approximately 8 times lower than those of the best-performing \gls{mqttd} configuration.
+The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_latency} shows that \gls{upnp} consistently achieves lower latency than \gls{mqttd}. Across all tested configurations, \gls{upnp} remains below 130 ms, whereas \gls{mqttd} reaches latency values of up to 25 s. Moreover, the latency of \gls{mqttd} increases at approximately twice the rate observed for \gls{upnp}. Both protocols exhibit a noticeable reduction in the rate of latency growth once more than 50 \textit{control-points} are deployed.
 
 \subsection{Robustness comparison}
 \begin{figure}[!ht]
@@ -189,19 +194,19 @@ The comparison between Figure \ref{fig_upnp_latency} and Figure \ref{fig_mqtt_la
 \end{figure}
 
 In figure \ref{fig_upnp_robustness} is shown a comparison of the error rate in \gls{upnp} with different \textit{devices} and \textit{control-points}.
-For \gls{upnp}, the ratio between the number of \textit{devices} discovered by the \textit{control points} and the actual number of deployed \textit{devices} is observed to be consistent across the different configurations (Figure \ref{fig_upnp_robustness}). The error rate increases rapidly, following an approximately logarithmic trend up to 20 deployed \textit{control points}; it then remains almost constant until 40 \textit{control points}, after which it rises sharply toward 100\%. A more detailed representation in Figure \ref{fig_apx_upnp_robustness} further confirms that this behaviour is nearly identical for all considered configurations.
+For the ratio between the number of \textit{devices} discovered by the \textit{control points} and the actual number of deployed \textit{devices} is observed to be consistent across the different configurations (Figure \ref{fig_upnp_robustness}). The error rate increases rapidly up to 10 deployed \textit{control points} then it grows slowly towards 90\%.
 
 \begin{figure}[!ht]
     \includegraphics[width=1\linewidth]{results/mqtt_robustness_light.png}
-    \caption{\gls{mqtt} robustness comparison with different \textit{devices}, \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_robustness_wireless}.}
+    \caption{\gls{mqttd} robustness comparison with different \textit{devices}, \textit{control-points} and \gls{qos}. See \ref{fig_apx_mqtt_robustness_wireless}.}
     \label{fig_mqtt_robustness}
 \end{figure}
 
 The Figure \ref{fig_mqtt_robustness} shows a error rate comparison with different \textit{devies}, \textit{control-points} and \gls{qos} in \gls{mqttd}.
-The obtained results show that the error rate rises sharply from almost 0\% to 100\% when the number of deployed \textit{control-points} approaches 10 for every configuration. This suggests that, during the 10-second interval reserved for the discovery phase, none of the \textit{control points} was able to receive the discovery announcement and respond within the required time frame.
+The experimental results demonstrate a consistent behaviour across the evaluated \gls{qos} levels. For \gls{qos} 0, the error rate for configurations with 1 or 5 deployed \textit{control-points} increases from 0\% to 10\%, reaching 10\% at 50 \textit{control-points}. In the case of 10 deployed \textit{devices}, the error rate remains approximately constant up to 50 \textit{control-points}, after which it increases at a rate comparable to that observed for 1 and 5 deployed \textit{devices}. For larger numbers of deployed \textit{devices}, no appreciable differences are observed among the various \gls{qos} levels, and the error rate reaches a maximum of 80\% with 100 deployed \textit{devices}. Notably, the configuration with \gls{qos} 2 does not exhibit a clear robustness advantage over the others.
 
 \subsubsection{Comparing the results}
-A comparison of the robustness of the two discovery protocols indicates that \gls{mqttd} exhibits greater robustness when only a very small number of \textit{control points} is deployed. However, once the threshold of 10 deployed \textit{control points} is reached, \gls{mqttd} displays an error rate of 100\%, whereas \gls{upnp} still maintains a lower, although substantial, error rate corresponding to approximately 60\% of \textit{devices} not being discovered.
+A comparison of the robustness of the two discovery protocols shows that \gls{mqttd} demonstrates superior resilience. Specifically, \gls{mqttd} outperforms \gls{upnp} in scenarios with lower numbers of deployed \textit{devices}, achieving a maximum error rate of approximately 25\%, in contrast to the 90\% observed for \gls{upnp}. In configurations with higher device deployments, \gls{mqttd} continues to perform more reliably than \gls{upnp}; in particular, its error rate increases at an almost linear pace, whereas \gls{upnp} exhibits a sharp rise, reaching 80\% almost immediately.
 
 \subsection{\gls{upnp} MX = 0}
 \begin{figure}[!ht]
@@ -217,18 +222,20 @@ A comparison of the robustness of the two discovery protocols indicates that \gl
 The experiment was performed by removing any artificial waiting time from the \gls{upnp} discovery process.
 Figure \ref{fig_upnp_0_latency_light} shows the latency of \gls{upnp} when all the artificial waiting times are removed.
 
-A comparison between Figure \ref{fig_upnp_0_latency_light} and Figure \ref{fig_upnp_latency} shows that the latency is reduced for all \textit{device} configurations, with the most pronounced improvement occurring in scenarios with a smaller number of deployed \textit{control points}. 
+A comparison between Figure \ref{fig_upnp_0_latency_light} and Figure \ref{fig_upnp_latency} reveals an inverse latency trend. In standard \gls{upnp}, deployments with fewer \textit{devices} are associated with lower latency. By contrast, when the artificial waiting times are removed, configurations with a higher number of deployed \textit{devices} exhibit the lowest latency. This effect is particularly evident in scenarios involving a larger number of \textit{control-points}. Overall, the two experiments produce broadly similar results, although standard \gls{upnp} still achieves slightly better performance. 
 
-In terms of robustness, Figure \ref{fig_upnp_0_robustness_light} indicates that, relative to Figure \ref{fig_upnp_robustness}, the error rate rises more rapidly toward 100\%. Nevertheless, the configuration with a single deployed \textit{device} is able to complete the experiment without reaching a 100\% error rate, thus exhibiting behaviour different from that shown in Figure \ref{fig_upnp_robustness}.
+In terms of robustness, Figure \ref{fig_upnp_robustness}, when compared with Figure \ref{fig_upnp_0_robustness_light}, exhibits a more compact distribution of results. In particular, all deployed \textit{device} configurations show more homogeneous behaviour with respect to those reported in Figure \ref{fig_upnp_0_robustness_light}. According to this metric, the two configurations exhibit only negligible differences.
 
 \subsection{\gls{gena}}
 \begin{figure}[!ht]
-    \includegraphics[width=1\linewidth]{results/gena_latency.png}
+    \includegraphics[width=1\linewidth]{results/gena_latency.png}   %TODO immagine nella cartella è volutamente la stessa della wired (appena disponibili i dati sostituire)
     \caption{\gls{gena} latency with different \textit{control-points}.}
     \label{fig_gena_latency}
 \end{figure}
 
-The Figure \ref{fig_gena_latency} shows the delivery latency of unicast events as a function of the number of subscribed \textit{control-points}. Data presented in Figure \ref{fig_gena_latency} indicates that for configurations with fewer than 10 subscribers, latency and the number of \textit{control-points} share an inverse relationship. Conversely, exceeding this limit results in a direct correlation, where additional \textit{control-points} lead to increased latency.
+The Figure \ref{fig_gena_latency} shows the delivery latency of unicast events as a function of the number of subscribed \textit{control-points}.
+%\todocheck
+Data presented in Figure \ref{fig_gena_latency} indicates that for configurations with fewer than 10 subscribers, latency and the number of \textit{control-points} share an inverse relationship. Conversely, exceeding this limit results in a direct correlation, where additional \textit{control-points} lead to increased latency.
 
 
 \subsection{Wireless vs Wired}
@@ -240,24 +247,48 @@ The Figure \ref{fig_gena_latency} shows the delivery latency of unicast events a
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_upnp_robustness_light.png}
     \label{fig_wired_upnp_robustness_light}}
     \caption{Wired \gls{upnp} (a) latency and (b) robustness different \textit{devices} \textit{control-points}. See \ref{fig_apx_upnp_latency}, \ref{fig_apx_upnp_0_robustness}.}
-    \label{fig_wired_upnp_0_latency-robustness}
+    \label{fig_wired_upnp_latency-robustness}
 \end{figure}
 
-\textcolor{blue}{\hl{TODO}}
+\begin{figure}[!ht]
+    \subfloat[]{\includegraphics[width=1\linewidth]{results/wired_mqtt_latency_light.png}
+    \label{fig_wired_mqtt_latency_light}}
+    \\
+    \subfloat[]{\includegraphics[width=1\linewidth]{results/wired_mqtt_robustness_light.png}
+    \label{fig_wired_mqtt_robustness_light}}
+    \caption{Wired \gls{mqttd} (a) latency and (b) robustness different \textit{devices} \textit{control-points}. See \ref{fig_apx_mqtt_latency_wired}, \ref{fig_apx_mqtt_robustness_wired}.}
+    \label{fig_wired_mqtt_latency-robustness}
+\end{figure}
+
+Figure \ref{fig_wired_upnp_latency-robustness} reports the wired latency and error‑rate characteristics observed across various \textit{device} and \textit{control‑point} configurations in \gls{upnp}.
+The results for \gls{upnp} indicate a clear benefit from the wired connection, with latency values approximately half of those measured in the wireless experiments. Notably, in the wired setup, deployments with fewer \textit{devices} are associated with higher latency (Figure \ref{fig_wired_upnp_latency_light}).
+With respect to robustness, the single-\textit{device} deployment maintains an error rate close to 0\% across all tested configurations. A comparison between wired and wireless scenarios further shows that, in the former, the error rate increases more linearly, whereas in the latter it rises almost immediately to 80\% and then further increases to 90\%. 
+An additional observation concerns the reduced latency measured in the 100-\textit{devices} configuration. This behaviour can be explained by the corresponding error rate, which exceeds 70\%, indicating that most of the deployed \textit{devices} are not successfully discovered. Therefore, the lower latency observed in configurations with a higher number of deployed \textit{devices} is a consequence of the limited number of \textit{devices} actually discovered.
+
+Figure \ref{fig_wired_mqtt_latency-robustness} presents the wired latency and error‑rate results across different \textit{device}, \textit{control‑point}, and \gls{qos} configurations.
+The \gls{mqttd} experiments exhibit consistent behavior across all \gls{qos} configurations. In terms of latency, a slight increase is observed as the \gls{qos} level increases. Configurations with a higher number of deployed \textit{devices} achieve the lowest latency, but also exhibit the highest error rate. 
+A modest yet significant improvement in robustness can be observed with increasing \gls{qos}, particularly in scenarios with a smaller number of deployed \textit{devices}.
 
 \subsection{Discussion}
 % * Commento su prestazioni tra mqttd e upnp in termini di latenza
 % * Spegare che quando la latenza va a 0 è perché l'error rate è a 100%
 % * Fare paragone tra mqttd e gena essendo entrambi pub-sub (gena è comunque migliore non ha la parte di discovery)
 
-The experiments proved \gls{upnp} to have less latency compared to \gls{mqttd}. Configuration between 1 and 10 \textit{control-points} deployed \gls{upnp} is from 5 to 10 times better depending on the deployed \textit{devices}. For higher values of \textit{devices} \gls{upnp} manages to remain almost constant, \gls{mqttd} on the contrary goes to 0, that can be explained by looking the error rate that spikes to 100\% meaning that not a single device is discovered.
+The experiments show that \gls{upnp} achieves significantly lower latency than \gls{mqttd}. For configurations ranging from 1 to 50 deployed \textit{control points}, \gls{upnp} records latency values between 60 and 100 ms, whereas \gls{mqttd} exhibits latencies ranging from 5 to 20 s. This substantial difference can be attributed to the lighter protocol overhead of \gls{upnp}, which relies primarily on UDP, in contrast to \gls{mqttd}, which is based on TCP.
 
 Since in \gls{upnp} the \gls{rpc} mechanism is implemented through \gls{soap} that has a client-server approach, it is also interesting a comparison between \gls{gena} and \gls{mqttd} both publisher-subscriber.
 
-In the single‑device deployment scenario, \gls{gena} exhibits the lowest latency among all \gls{qos} configurations evaluated within \gls{mqttd}. Moreover, \gls{gena} consistently completes the experimental run, as its error rate never reaches 100\%.
+%\todocheck
+In the single‑device deployment scenario, \gls{gena} exhibits the lowest latency among all \gls{qos} configurations evaluated within \gls{mqttd}.
+%\todocheck
 Within the single-\textit{device} setup featuring 1-4 control points, where a direct comparison between \gls{gena} and \gls{mqttd} is feasible, \gls{gena} demonstrates substantially superior performance. Specifically, it achieves latency reductions of at least a factor of six in the single-\textit{control‑point} configuration and up to a factor of eight when two \textit{control-points} are deployed.
 
-Based on the evaluations conducted in this dissertation, \gls{upnp} demonstrated the lowest latency and the highest degree of robustness. These findings suggest that \gls{upnp} is better suited than \gls{mqttd} for dense \gls{iot} deployments, particularly in scenarios where numerous devices must communicate concurrently in response to environmental changes that require timely reporting.
+A comparison of Figure \ref{fig_upnp_latency} with Figure \ref{fig_wired_upnp_latency_light}, indicates that \gls{upnp} over a wired connection achieves significantly lower latency, with measured values reduced by nearly half. 
+Moreover, a comparison of Figure \ref{fig_upnp_robustness} with Figure \ref{fig_wired_upnp_robustness_light} shows that the wired configuration also improves robustness. In particular, the single-\textit{device} deployment exhibits an error rate close to 0\%, and each subsequent increase in deployed \textit{devices} leads to a gradual degradation in performance across the different \textit{control-point} deployments. This behaviour contrasts with that observed in the wireless scenario, in which all deployed \textit{devices} exhibit a more uniform trend across configurations as the number of \textit{control points} increases.
+
+A comparison between the wireless and wired \gls{mqttd} configurations does not reveal any significant improvement in either latency or robustness. The experimental results are nearly identical for both metrics across the two scenarios.
+
+Based on the evaluations conducted in this dissertation, \gls{upnp} achieves the lowest latency, whereas \gls{mqttd} provides the highest level of robustness. These results suggest that \gls{upnp} is more suitable for \gls{iot} networks with a limited number of \textit{devices}, such as smart homes or small-scale facilities. In contrast, \gls{mqttd}, due to its greater robustness, appears more appropriate for dense \gls{iot} environments, in which a large number of \textit{devices} must perform discovery and exchange data concurrently.
 
 \section{Conclusions}
 \label{sec_conclusions}
@@ -268,10 +299,9 @@ This dissertation undertook a comparative evaluation of \gls{mqttd} and \gls{upn
 
 For the purposes of these experiments, a fully compliant \gls{upnp} \textit{device} and \textit{control-point} were implemented. Nevertheless, to ensure compliance with the specifications, part of the \textit{control-point} functionality relied on a third-party library.
 
-The experimental results showed that \gls{upnp} achieved the lowest latency among all evaluated configurations. Furthermore, it demonstrated greater robustness, whereas \gls{mqttd} completely failed to discover any devices at higher network densities.
-For \gls{mqttd}, performance was strongly influenced by the \gls{qos} level adopted. In particular, the use of \gls{qos} 2 improved robustness, but at the cost of slightly higher latency, making it the least effective option in terms of response time.
+The experimental results show that \gls{upnp} achieves the lowest latency across all evaluated configurations, making it more suitable for small-scale \gls{iot} networks. In contrast, \gls{mqttd} demonstrates greater robustness across all adopted \gls{qos} levels, which makes it more appropriate for denser \gls{iot} deployments.
 
-\textcolor{blue}{\hl{TODO mettere paragone wired wireless}}
+A comparison of wired and wireless deployments shows that \gls{upnp} benefits significantly from the wired configuration, with lower latency and greater robustness, whereas performance in the wireless case degrades more rapidly as the deployment scales. In contrast, \gls{mqttd} exhibits nearly identical latency and robustness in both scenarios. Therefore, the connection type has a significant impact on \gls{upnp} but a negligible effect on \gls{mqttd}.
 
 Future research could investigate how \gls{upnp} and \gls{mqttd} behave with real scenario data, investigating how payloads affect latency and robustness. In addition a further study could repeat this experiments in smart homes or industrial plant networks and evaluate how performances degrades in a shared network.
 

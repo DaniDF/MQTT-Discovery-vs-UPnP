@@ -50,7 +50,7 @@ do
     
     for count in {1..30} ;
     do
-        ssh $REMOTE_USER "tests/bin/device -u 1 > tests/logs/device_test-gena_u-1_$(date +"%Y%m%d_%H%M%S_%N").log 2>&1 < /dev/null"
+        ssh -f $REMOTE_USER "tests/bin/device -u 1 > tests/logs/device_test-gena_u-1_$(date +"%Y%m%d_%H%M%S_%N").log 2>&1 < /dev/null"
         
         sleep 3
         ../bin/./control -u $upnp_controls > ../logs/control_test-gena_d-1_u-"$upnp_controls"_$(date +"%Y%m%d_%H%M%S_%N").log 2>&1 < /dev/null
