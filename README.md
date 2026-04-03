@@ -7,6 +7,7 @@ This project aims to compare two discovery protocols: [MQTT-Discovery](https://w
 Here a quick list of files that may interest you:
 
 * [report](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP.pdf): the report of the experiments in a IEEE format
+* [presentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP_presentation.pdf): 10 mins presentation of the results
 * [analysis](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/analysis/data_analysis.ipynb): the analysis file (python notebook) to reproduce the evaluations made in the report
 
 
@@ -64,6 +65,8 @@ To analyse all the produced log files see the python notebook in [data_analysis.
 ## 💠 Report
 
 See the [documentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP.pdf) to learn how the experiments were conducted and the obtained results.
+
+Have a look to the 10 mins [presentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP_presentation.pdf) of the experiment results
 
 
 
