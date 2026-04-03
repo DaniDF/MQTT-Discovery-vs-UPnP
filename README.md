@@ -8,7 +8,7 @@ Here a quick list of files that may interest you:
 
 * [report](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP.pdf): the report of the experiments in a IEEE format
 * [presentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP_presentation.pdf): 10 mins presentation of the results
-* [analysis](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/analysis/data_analysis.ipynb): the analysis file (python notebook) to reproduce the evaluations made in the report
+* [analysis](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/README.md): to reproduce the evaluations made in the report
 
 
 
@@ -39,34 +39,19 @@ The chosen protocols are quite different:
 
 
 
-## 💠 Run experiments
-
-The experiments to run need a password less ssh connection between nodes. All the tests can be run in the same machine but it is suggested to launch devices and controls on different nodes.
-
-```sh
-# For UPnP test
-cd tests/scripts
-sh -c upnp_latency_control.sh
-# For MQTT test
-cd tests/scripts
-sh -c mqtt_latency_control.sh
-```
-
-This test run simultaneously latency and robustness. These scripts generate log files (a lot) with all the metrics of all test runs.
-
-
-
-## 💠 Test analysis
-
-To analyse all the produced log files see the python notebook in [data_analysis.ipynb](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/analysis/data_analysis.ipynb)
-
-
-
 ## 💠 Report
 
 See the [documentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP.pdf) to learn how the experiments were conducted and the obtained results.
 
-Have a look to the 10 mins [presentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP_presentation.pdf) of the experiment results
+Have a look to the 10 mins [presentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/docs/MQTTDiscovery_vs_UPnP_presentation.pdf) of the experiment results.
+
+
+
+
+## 💠 Reproduce the experiments
+
+To reproduce the experiments conducted for this study please look at the provided [documentation](https://github.com/DaniDF/MQTT-Discovery-vs-UPnP/blob/main/tests/README.md).
+
 
 
 
