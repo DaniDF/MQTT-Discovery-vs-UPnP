@@ -228,14 +228,13 @@ In terms of robustness, Figure \ref{fig_upnp_robustness}, when compared with Fig
 
 \subsection{\gls{gena}}
 \begin{figure}[!ht]
-    \includegraphics[width=1\linewidth]{results/gena_latency.png}   %TODO immagine nella cartella è volutamente la stessa della wired (appena disponibili i dati sostituire)
+    \includegraphics[width=1\linewidth]{results/gena_latency.png}
     \caption{\gls{gena} latency with different \textit{control-points}.}
     \label{fig_gena_latency}
 \end{figure}
 
 The Figure \ref{fig_gena_latency} shows the delivery latency of unicast events as a function of the number of subscribed \textit{control-points}.
-%\todocheck
-Data presented in Figure \ref{fig_gena_latency} indicates that for configurations with fewer than 10 subscribers, latency and the number of \textit{control-points} share an inverse relationship. Conversely, exceeding this limit results in a direct correlation, where additional \textit{control-points} lead to increased latency.
+\todocheck Data presented in Figure \ref{fig_gena_latency} indicates that for configurations with fewer than 10 subscribers, latency and the number of \textit{control-points} share an inverse relationship. Conversely, exceeding this limit results in a direct correlation, where additional \textit{control-points} lead to increased latency.
 
 
 \subsection{Wireless vs Wired}
@@ -278,10 +277,8 @@ The experiments show that \gls{upnp} achieves significantly lower latency than \
 
 Since in \gls{upnp} the \gls{rpc} mechanism is implemented through \gls{soap} that has a client-server approach, it is also interesting a comparison between \gls{gena} and \gls{mqttd} both publisher-subscriber.
 
-%\todocheck
-In the single‑device deployment scenario, \gls{gena} exhibits the lowest latency among all \gls{qos} configurations evaluated within \gls{mqttd}.
-%\todocheck
-Within the single-\textit{device} setup featuring 1-4 control points, where a direct comparison between \gls{gena} and \gls{mqttd} is feasible, \gls{gena} demonstrates substantially superior performance. Specifically, it achieves latency reductions of at least a factor of six in the single-\textit{control‑point} configuration and up to a factor of eight when two \textit{control-points} are deployed.
+\todocheck In the single‑device deployment scenario, \gls{gena} exhibits the lowest latency among all \gls{qos} configurations evaluated within \gls{mqttd}.
+\todocheck Within the single-\textit{device} setup featuring 1-4 control points, where a direct comparison between \gls{gena} and \gls{mqttd} is feasible, \gls{gena} demonstrates substantially superior performance. Specifically, it achieves latency reductions of at least a factor of six in the single-\textit{control‑point} configuration and up to a factor of eight when two \textit{control-points} are deployed.
 
 A comparison of Figure \ref{fig_upnp_latency} with Figure \ref{fig_wired_upnp_latency_light}, indicates that \gls{upnp} over a wired connection achieves significantly lower latency, with measured values reduced by nearly half. 
 Moreover, a comparison of Figure \ref{fig_upnp_robustness} with Figure \ref{fig_wired_upnp_robustness_light} shows that the wired configuration also improves robustness. In particular, the single-\textit{device} deployment exhibits an error rate close to 0\%, and each subsequent increase in deployed \textit{devices} leads to a gradual degradation in performance across the different \textit{control-point} deployments. This behaviour contrasts with that observed in the wireless scenario, in which all deployed \textit{devices} exhibit a more uniform trend across configurations as the number of \textit{control points} increases.
