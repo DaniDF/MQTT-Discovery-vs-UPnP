@@ -1,35 +1,9 @@
 \section{More data points}
 \label{apx_more_data_points}
 
-\subsection{\gls{mqtt}}
-\subsubsection{Latency}
-\begin{figure*}[!ht]
-    \centering
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency.png}
-    \label{fig_apx_mqtt_latency_wireless}}
-    \hfil
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_mqtt_latency_light.png}}%TODO full
-    \label{fig_apx_mqtt_latency_wired}
-    \caption{\gls{mqtt} latency}
-    \label{fig_apx_mqtt_latency}
-\end{figure*}
-
-\subsubsection{Robustness}
-\begin{figure*}[!ht]
-    \centering
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness.png}
-    \label{fig_apx_mqtt_robustness_wireless}}
-    \hfil
-    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_mqtt_robustness_light.png}%TODO full
-    \label{fig_apx_mqtt_robustness_wired}}
-    \caption{\gls{mqtt} latency}
-    \label{fig_apx_mqtt_robustness}
-\end{figure*}
-
-
 \subsection{\gls{upnp}}
-\subsubsection{\gls{upnp} latency}
-\begin{figure*}[!ht]
+%\subsubsection{\gls{upnp} latency}
+\begin{figure}[!ht]
     \centering
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_latency.png}
     \label{fig_apx_upnp_latency_wireless}}
@@ -38,9 +12,9 @@
     \label{fig_apx_upnp_latency_cabled}}
     \caption{\gls{upnp} (a) wireless and (b) wired latency}
     \label{fig_apx_upnp_latency}
-\end{figure*}
+\end{figure}
 
-\begin{figure*}[!ht]
+\begin{figure}[!ht]
     \centering
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_0_latency_light.png}
     \label{fig_apx_upnp_0_latency}}
@@ -49,10 +23,10 @@
     \label{fig_apx_upnp_0_robustness}}
     \caption{\gls{upnp} (a) latency and (b) robustness with no random delay}
     \label{fig_apx_upnp_0}
-\end{figure*}
+\end{figure}
 
-\subsubsection{\gls{upnp} robustness}
-\begin{figure*}[!ht]
+%\subsubsection{\gls{upnp} robustness}
+\begin{figure}[!ht]
     \centering
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_robustness.png}
     \label{fig_apx_upnp_robustness_wireless}}
@@ -61,4 +35,30 @@
     \label{fig_apx_upnp_robustness_cabled}}
     \caption{\gls{upnp} (a) wireless and (b) wired robustness}
     \label{fig_apx_upnp_robustness}
-\end{figure*}
+\end{figure}
+
+
+\subsection{\gls{mqtt}}
+%\subsubsection{Latency}
+\begin{figure}[!ht]
+    \centering
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_latency.png}
+    \label{fig_apx_mqtt_latency_wireless}}
+    \hfil
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_mqtt_latency_light.png}}%TODO full
+    \label{fig_apx_mqtt_latency_wired}
+    \caption{\gls{mqtt} latency}
+    \label{fig_apx_mqtt_latency}
+\end{figure}
+
+%\subsubsection{Robustness}
+\begin{figure}[!ht]
+    \centering
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/mqtt_robustness.png}
+    \label{fig_apx_mqtt_robustness_wireless}}
+    \hfil
+    \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_mqtt_robustness_light.png}%TODO full
+    \label{fig_apx_mqtt_robustness_wired}}
+    \caption{\gls{mqtt} latency}
+    \label{fig_apx_mqtt_robustness}
+\end{figure}

@@ -43,7 +43,7 @@ https://github.com/DaniDF/MQTT-Discovery-vs-UPnP}
 \maketitle
 
 \begin{abstract}
-This paper provides a comparative evaluation of Universal Plug and Play (UPnP) and Message Queuing Telemetry Transport-Discovery (MQTT-D) based on two fundamental performance metrics: latency and robustness. The analysis examines the behavior of both protocols under similar deployment conditions, with particular attention to dense network environments, where numerous devices simultaneously attempt to discover one another. The experimental findings indicate that UPnP consistently surpasses MQTT-D in both aspects, demonstrating lower latency and higher robustness across all tests. These results suggest that UPnP may represent a more effective solution for dense application scenarios in which rapid response times are essential.
+This dissertation provides a comparative evaluation of Universal Plug and Play (UPnP) and Message Queuing Telemetry Transport-Discovery (MQTT-D) based on two fundamental performance metrics: latency and robustness. The analysis examines the behaviour of both protocols under similar deployment conditions, with particular attention to dense network environments, where numerous devices simultaneously attempt to discover one another. The experimental findings indicate that UPnP consistently surpasses MQTT-D in both aspects, demonstrating lower latency and higher robustness across all tests. These results suggest that UPnP may represent a more effective solution for dense application scenarios in which rapid response times are essential.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -140,7 +140,7 @@ This dissertation aims to evaluate the performance of two of the main \gls{iot} 
 % * Differenze rispetto allo standard (MX non limitato a 5)
 % * Motivare la scelta delle tecnologie
 
-\todo{maggiori dettagli sul design e l'implementazione dei due prototipi}
+\donecheck[maggiori dettagli sul design e l'implementazione dei due prototipi]
 
 To establish a testing environment, a fully compatible \gls{upnp} \textit{device} and \textit{control point} were implemented in accordance with the official specification \cite{ocf_upnp_architecture_2020}. All major protocol components were developed, including \gls{ssdp}, \gls{soap}, and \gls{gena} \cite{DaniDF_MQTT-Discovery_vs_UPnP}. For \gls{http}, the standard library provided by Go was employed. To further validate standards compliance and interoperability, a third-party \gls{upnp} client library was also used \cite{goupnp}.
 
@@ -149,7 +149,18 @@ For \gls{mqttd}, an existing implementation of the \gls{mqtt} protocol was adopt
 \gls{mqttd} defines two mechanisms for \textit{device} presence discovery. The first relies on a retained message published by a \textit{device} when it joins the network; this message is subsequently delivered by the broker to a \textit{control point} when the latter subscribes to the corresponding topic \cite{mqttd}. The second mechanism is based on solicitation: the \textit{control-point} publishes a message on a predetermined topic to which all \textit{devices} are subscribed. Upon receiving such a solicitation message, each \textit{device} responds by sending its discovery message\cite{mqttd}.
 
 The software developed for this work \cite{DaniDF_MQTT-Discovery_vs_UPnP} supports both mechanisms; however, the experiments were conducted exclusively using the solicitation-based approach.
-All software components developed by the author \cite{DaniDF_MQTT-Discovery_vs_UPnP} were implemented in Go in order to balance high execution efficiency with the advantages of a higher-level programming language.
+
+All software components developed by the author \cite{DaniDF_MQTT-Discovery_vs_UPnP} were implemented in GoLang in order to balance high execution efficiency with the advantages of a higher-level programming language.
+
+On top of each protocol module, a dedicated controller was implemented to expose ready-to-use \gls{api}s for the discovery of and subscription to \textit{devices}. These controllers provide \gls{upnp} and \gls{mqttd} objects that encapsulate the underlying control logic. In particular, \gls{rpc} invocation, result processing, and error handling are managed internally, thereby offering a simplified abstraction that can be used without requiring knowledge of the internal operation of the underlying protocols.
+
+To evaluate the protocols, a testing procedure was implemented to measure the time elapsed during each execution phase. All collected information was logged to the standard output.
+
+The experimental environment consisted of two nodes: one hosting the \textit{devices} and the other hosting the \textit{control-points}. In the case of \gls{mqttd}, a third node was additionally deployed to run the \gls{mqtt} broker.
+
+For each \textit{device} and \textit{control-point} configuration, a Bash script was developed to automate the testing process. The script was executed on the \textit{control-points} node and, through SSH, instructed the \textit{device} node to instantiate the required number of \textit{devices}. At the end of each test, the \textit{control-points} node ensured that no residual \textit{device} instances were still running on the remote node.
+
+The log output generated for each configuration was redirected and stored in a dedicated file. These log files were subsequently processed through a Python notebook to analyse the metrics and compute the statistics presented in this dissertation.
 
 \section{Experimental Results}
 \label{sec_experimental_results}
@@ -309,7 +320,7 @@ A modest yet significant improvement in robustness can be observed with increasi
 % * Spegare che quando la latenza va a 0 è perché l'error rate è a 100%
 % * Fare paragone tra mqttd e gena essendo entrambi pub-sub (gena è comunque migliore non ha la parte di discovery)
 
-\todo{cerchi di motivare perché c'è riduzione di latency growth per più di 50 control point}
+\donecheck[cerchi di motivare perché c'è riduzione di latency growth per più di 50 control point]
 
 The experiments show that \gls{upnp} achieves significantly lower latency than \gls{mqttd}. For configurations ranging from 1 to 50 deployed \textit{control points}, \gls{upnp} records latency values between 60 and 100 ms, whereas \gls{mqttd} exhibits latencies ranging from 5 to 20 s. This substantial difference can be attributed to the lighter protocol overhead of \gls{upnp}, which relies primarily on UDP, in contrast to \gls{mqttd}, which is based on TCP.
 
@@ -321,6 +332,12 @@ A comparison of Figure \ref{fig_upnp_latency} with Figure \ref{fig_wired_upnp_la
 Moreover, a comparison of Figure \ref{fig_upnp_robustness} with Figure \ref{fig_wired_upnp_robustness_light} shows that the wired configuration also improves robustness. In particular, the single-\textit{device} deployment exhibits an error rate close to 0\%, and each subsequent increase in deployed \textit{devices} leads to a gradual degradation in performance across the different \textit{control-point} deployments. This behaviour contrasts with that observed in the wireless scenario, in which all deployed \textit{devices} exhibit a more uniform trend across configurations as the number of \textit{control points} increases.
 
 A comparison between the wireless and wired \gls{mqttd} configurations does not reveal any significant improvement in either latency or robustness. The experimental results are nearly identical for both metrics across the two scenarios.
+
+As discussed previously, the latency measurements exhibit a tendency to increase at a lower rate once the number of deployed \textit{control-points} exceeds 50. This behaviour is more pronounced in \gls{mqttd} than in \gls{upnp} and can be explained by comparing Figure \ref{fig_mqtt_latency} with Figure \ref{fig_mqtt_robustness}. In particular, when the number of deployed \textit{control-points} reaches 100, the number of valid connections does not significantly exceed that observed with only 50 \textit{control-points}. This indicates that, from 50 to 100 \textit{control-points}, the total number of successful connections remains nearly constant, while their distribution over time becomes more concurrent.
+
+As an illustrative example, consider \gls{mqttd} with \gls{qos} 0 and 100 deployed \textit{devices}. When 50 \textit{control-points} are deployed, the expected number of connections is 5000; however, given an error rate of approximately 67\%, the number of successful connections is reduced to about 1650. When the number of deployed \textit{control-points} is increased to 100, the measured error rate rises to 83\%, yielding approximately 1700 successful connections. Although this represents a slight increase in the number of valid connections, it occurs under a substantially higher level of concurrency, with 100 \textit{devices} and 100 \textit{control-points} interacting simultaneously.
+
+For this reason, latency growth nearly saturates once 50 \textit{control-points} are deployed. The additional \textit{control-points} do not generate a significant number of new successful connections with the \textit{devices}, and therefore produce only a marginal impact on the measured latency.
 
 Based on the evaluations conducted in this dissertation, \gls{upnp} achieves the lowest latency, whereas \gls{mqttd} provides the highest level of robustness. These results suggest that \gls{upnp} is more suitable for \gls{iot} networks with a limited number of \textit{devices}, such as smart homes or small-scale facilities. In contrast, \gls{mqttd}, due to its greater robustness, appears more appropriate for dense \gls{iot} environments, in which a large number of \textit{devices} must perform discovery and exchange data concurrently.
 
@@ -342,10 +359,16 @@ Future research could investigate how \gls{upnp} and \gls{mqttd} behave with rea
 
 \printglossary[type=\acronymtype]
 
-\newpage
+\clearpage
 
 \appendix
 \input{appendix_more_data_points}
+
+\clearpage
+
+\begin{IEEEbiographynophoto}{Daniele Foschi}
+Mater Degree student in Computer Engineering at University of Bologna.
+\end{IEEEbiographynophoto}
 
 \bibliographystyle{IEEEtran}
 \bibliography{bibliography}
