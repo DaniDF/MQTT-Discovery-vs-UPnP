@@ -140,8 +140,6 @@ This dissertation aims to evaluate the performance of two of the main \gls{iot} 
 % * Differenze rispetto allo standard (MX non limitato a 5)
 % * Motivare la scelta delle tecnologie
 
-\donecheck[maggiori dettagli sul design e l'implementazione dei due prototipi]
-
 To establish a testing environment, a fully compatible \gls{upnp} \textit{device} and \textit{control point} were implemented in accordance with the official specification \cite{ocf_upnp_architecture_2020}. All major protocol components were developed, including \gls{ssdp}, \gls{soap}, and \gls{gena} \cite{DaniDF_MQTT-Discovery_vs_UPnP}. For \gls{http}, the standard library provided by Go was employed. To further validate standards compliance and interoperability, a third-party \gls{upnp} client library was also used \cite{goupnp}.
 
 For \gls{mqttd}, an existing implementation of the \gls{mqtt} protocol was adopted, while only a wrapper for the \gls{mqttd} data format was developed. As the \gls{mqtt} broker, Mosquitto was selected due to its widespread adoption and popularity in IoT deployments.
@@ -167,8 +165,6 @@ The log output generated for each configuration was redirected and stored in a d
 % * Sintesi obiettivo degli esperimenti
 % * Come fatto setup
 % * Foto setup sperimentale
-
-\donecheck[nei risultati sperimentali riporti anche la varianza (o simili)]
 
 This section evaluates latency and robustness in a two-node \gls{upnp} deployment, in which one node runs the \textit{devices} and the other runs the \textit{control-points}. The \gls{mqttd} deployment requires the addition of a third node, which hosts the \gls{mqtt} broker. Each node is equipped with 12 core CPU, 16GB of memory and 2.5Gb lan interface.
 
@@ -256,7 +252,7 @@ A comparison of the robustness of the two discovery protocols shows that \gls{mq
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/upnp_0_robustness_error_light.png}
     \label{fig_upnp_0_robustness_error_light}}
     
-    \caption{\gls{upnp} (a) latency and (c) robustness different \textit{devices} \textit{control-points}. (b) quartile latency variance. (d) Robustness variance. See \ref{fig_apx_upnp_0_latency}, \ref{fig_apx_upnp_0_robustness}.}
+    \caption{\gls{upnp} (a) latency and (c) robustness different \textit{devices} \textit{control-points}. (b) quartile latency variance. (d) Robustness variance.}
     \label{fig_upnp_0_latency-robustness}
 \end{figure}
 
@@ -292,7 +288,7 @@ Data presented in Figure \ref{fig_gena_latency} indicates that for configuration
     \subfloat[]{\includegraphics[width=0.48\linewidth]{results/wired_upnp_robustness_error_light.png}
     \label{fig_wired_upnp_robustness_error_light}}
 
-    \caption{Wired \gls{upnp} (a) latency and (c) robustness different \textit{devices} \textit{control-points}. (b) Latency variance. (d) Robustness variance. See \ref{fig_apx_upnp_latency}, \ref{fig_apx_upnp_0_robustness}.}
+    \caption{Wired \gls{upnp} (a) latency and (c) robustness different \textit{devices} \textit{control-points}. (b) Latency variance. (d) Robustness variance. See \ref{fig_apx_upnp_latency}.}
     \label{fig_wired_upnp_latency-robustness}
 \end{figure}
 
@@ -302,7 +298,7 @@ Data presented in Figure \ref{fig_gena_latency} indicates that for configuration
     \\
     \subfloat[]{\includegraphics[width=1\linewidth]{results/wired_mqtt_robustness_light.png}
     \label{fig_wired_mqtt_robustness_light}}
-    \caption{Wired \gls{mqttd} (a) latency and (b) robustness different \textit{devices} \textit{control-points}. See \ref{fig_apx_mqtt_latency_wired}, \ref{fig_apx_mqtt_robustness_wired}.}
+    \caption{Wired \gls{mqttd} (a) latency and (b) robustness different \textit{devices} \textit{control-points}.}
     \label{fig_wired_mqtt_latency-robustness}
 \end{figure}
 
@@ -319,8 +315,6 @@ A modest yet significant improvement in robustness can be observed with increasi
 % * Commento su prestazioni tra mqttd e upnp in termini di latenza
 % * Spegare che quando la latenza va a 0 è perché l'error rate è a 100%
 % * Fare paragone tra mqttd e gena essendo entrambi pub-sub (gena è comunque migliore non ha la parte di discovery)
-
-\donecheck[cerchi di motivare perché c'è riduzione di latency growth per più di 50 control point]
 
 The experiments show that \gls{upnp} achieves significantly lower latency than \gls{mqttd}. For configurations ranging from 1 to 50 deployed \textit{control points}, \gls{upnp} records latency values between 60 and 100 ms, whereas \gls{mqttd} exhibits latencies ranging from 5 to 20 s. This substantial difference can be attributed to the lighter protocol overhead of \gls{upnp}, which relies primarily on UDP, in contrast to \gls{mqttd}, which is based on TCP.
 
