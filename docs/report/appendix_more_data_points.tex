@@ -1,6 +1,8 @@
 \section{More data points}
 \label{apx_more_data_points}
 
+This dissertation evaluated \gls{upnp} and \gls{mqttd} deployments under different configurations of \textit{devices} and \textit{control-points}. The number of entities was increased incrementally from 1 to 10 in unit steps, and from 10 to 100 in steps of ten. For the sake of readability, Section \ref{sec_experimental_results} reports only the graphs corresponding to the data points 1, 5, 10, 50, and 100. This appendix presents the complete set of collected data.
+
 \subsection{\gls{upnp}}
 %\subsubsection{\gls{upnp} latency}
 \begin{figure}[!ht]
@@ -40,25 +42,39 @@
 
 \subsection{\gls{mqtt}}
 %\subsubsection{Latency}
-\begin{figure}[!ht]
-    \centering
-    \subfloat[]{\includegraphics[width=1\linewidth]{results/mqtt_latency.png}
-    \label{fig_apx_mqtt_latency_wireless}}
+%\begin{figure}[!ht]
+%    \centering
+%    \subfloat[]{\includegraphics[width=1\linewidth]{results/mqtt_latency.png}
+%    \label{fig_apx_mqtt_latency_wireless}}
 %    \\
 %    \subfloat[]{\includegraphics[width=1\linewidth]{results/wired_mqtt_latency_light.png}}
 %    \label{fig_apx_mqtt_latency_wired}
+%   \caption{\gls{mqtt} latency}
+%    \label{fig_apx_mqtt_latency}
+%\end{figure}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{results/mqtt_latency.png}
     \caption{\gls{mqtt} latency}
-    \label{fig_apx_mqtt_latency}
+    \label{fig_apx_mqtt_latency_wireless}
 \end{figure}
 
 %\subsubsection{Robustness}
-\begin{figure}[!ht]
-    \centering
-    \subfloat[]{\includegraphics[width=1\linewidth]{results/mqtt_robustness.png}
-    \label{fig_apx_mqtt_robustness_wireless}}
+%\begin{figure}[!ht]
+%    \centering
+%    \subfloat[]{\includegraphics[width=1\linewidth]{results/mqtt_robustness.png}
+%    \label{fig_apx_mqtt_robustness_wireless}}
 %    \\
 %    \subfloat[]{\includegraphics[width=1\linewidth]{results/wired_mqtt_robustness_light.png}
 %    \label{fig_apx_mqtt_robustness_wired}}
+%    \caption{\gls{mqtt} robustness}
+%    \label{fig_apx_mqtt_robustness}
+%\end{figure}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{results/mqtt_robustness.png}
     \caption{\gls{mqtt} robustness}
-    \label{fig_apx_mqtt_robustness}
+    \label{fig_apx_mqtt_robustness_wireless}
 \end{figure}
